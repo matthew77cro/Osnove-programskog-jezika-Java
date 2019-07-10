@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity"
+    android:orientation="vertical">
+
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:hint="@string/enterFirst"
+        android:textSize="20sp"
+        android:id="@+id/firstNumber"
+        android:inputType="number"/>
+
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:hint="@string/enterSecond"
+        android:textSize="20sp"
+        android:id="@+id/secondNumber"
+        android:inputType="number"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calculate"
+        android:id="@+id/calculate"/>
+    
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="40sp"
+        android:id="@+id/result"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/calculate2"
+        android:id="@+id/calculate2"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="@string/send1"
+        android:background="@color/colorPrimaryDark"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:id="@+id/send1"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="@string/send2"
+        android:background="@color/colorPrimaryDark"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:id="@+id/send2"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="@string/send3"
+        android:background="@color/colorPrimaryDark"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:id="@+id/send3"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="@string/get1"
+        android:background="@color/colorPrimaryDark"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:id="@+id/get1"/>
+
+    <ImageView
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:id="@+id/slika"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="@string/get2"
+        android:background="@color/colorPrimaryDark"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:id="@+id/get2"/>
+
+</LinearLayout>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+		 http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+  metadata-complete="false">
+
+  <display-name>hw13</display-name>
+  <description>
+     hw13-0036507836
+  </description>
+  
+  <!--
+  <listener>
+        <listener-class>fqcn</listener-class>
+  </listener>
+  
+  <servlet>
+  	<servlet-name>name</servlet-name>
+  	<servlet-class>fqcn</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+  	<servlet-name>name</servlet-name>
+  	<url-pattern>/path</url-pattern>
+  </servlet-mapping>
+  -->
+
+</web-app>

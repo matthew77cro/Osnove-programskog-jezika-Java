@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Prva Android aplikacija</string>
+    <string name="calculate">Izracunaj</string>
+    <string name="calculate2">Posalji na izracun</string>
+    <string name="back">Povratak</string>
+    <string name="send1">Posalji1</string>
+    <string name="send2">Posalji Javom</string>
+    <string name="send3">Posalji java butterknife</string>
+    <string name="get1">Dohvati url</string>
+    <string name="get2">Dohvati korisnika</string>
+    <string name="firstNamePlaceholder">Ime: %s</string>
+    <string name="lastNamePlaceholder">Prezime: %s</string>
+    <string name="enterFirst">Unesite prvi broj</string>
+    <string name="enterSecond">Unesite drugi broj</string>
+</resources>

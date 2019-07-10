@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Prva Android aplikacija</string>
+    <string name="calculate">Izracunaj</string>
+    <string name="calculate2">Posalji na izracun</string>
+    <string name="back">Povratak</string>
+</resources>

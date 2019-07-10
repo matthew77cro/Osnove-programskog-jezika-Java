@@ -1,0 +1,678 @@
+----------------------------------------------------------------------------------
+Primjeri koji slijede ilustriraju pojam bazena dretvi i 
+konceptualnu implementaciju; nakon toga daje se poveznica
+prema radnom okviru Executors te ForkJoin.
+
+Radni primjer jest aproksimacija broja Pi na temelju slučajno
+generiranih 2d točaka iz intervala [-1,1]x[-1,1] i provjere
+koliko ih je upalo u krug radijusa 1 smješten u ishodištu.
+----------------------------------------------------------------------------------
+
+1a. primjer: pomoćni razred koji sadrži metodu koja računa broj Pi uzorkovanjem.
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.Random;
+
+public class PIUtil {
+
+	public static int testNumbersInCircle(int numberOfSamples, Random rand) {
+		int inside = 0;
+		for(int i = 0; i < numberOfSamples; i++) {
+			double x = rand.nextDouble()*2-1;
+			double y = rand.nextDouble()*2-1;
+			if(x*x + y*y <= 1) {
+				inside++;
+			}
+		}
+		return inside;
+	}
+
+}
+
+----------------------------------------------------------------------------------
+
+1b. primjer: glavni program koji sve obavlja slijedno.
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.Random;
+
+public class BrojPISlijedni {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000;
+
+		double pi = izracunajSlijedno(numberOfSamples);
+		System.out.println("Pi = " + pi);
+
+	}
+
+	private static double izracunajSlijedno(int numberOfSamples) {
+		int inside = PIUtil.testNumbersInCircle(numberOfSamples, new Random());
+		return 4*inside/(double)numberOfSamples;
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+
+2a. primjer: bazen dretvi v1; 
+    - razdvajamo upravljanje dretvama od poslova!
+    - poslove modeliramo kao objekte tipa Runnable
+    - izvesti posao znači odraditi njegovu metodu run()
+    - upravljanje želimo zatvoriti u biblioteku koju kasnije možemo "reusati"
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.concurrent.LinkedBlockingQueue;
+
+public class ThreadPoolSimple {
+	private Runnable redLittlePill = () -> {};
+	private LinkedBlockingQueue<Runnable> jobs = new LinkedBlockingQueue<>();
+	private Thread[] workers;
+	
+	public ThreadPoolSimple(int numberOfWorkers) {
+		workers = new Thread[numberOfWorkers];
+		for(int i = 0; i < numberOfWorkers; i++) {
+			workers[i] = new Thread(() -> {
+				while(true) {
+					Runnable job = nextJob();
+					if(job==redLittlePill) return;
+					job.run();
+				}
+			});
+			workers[i].start();
+		}
+	}
+	
+	public ThreadPoolSimple() {
+		this(Runtime.getRuntime().availableProcessors());
+	}
+	
+	public void addJob(Runnable job) {
+		while(true) {
+			try {
+				jobs.put(job);
+				return;
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+
+	public void shutdown() {
+		for(int i = 0; i < workers.length; i++) {
+			addJob(redLittlePill);
+		}
+	}
+	
+	private Runnable nextJob() {
+		while(true) {
+			try {
+				Runnable job = jobs.take();
+				return job;
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+
+2b. primjer: glavni program; 
+    - izračun dijeli u dva posla
+    - očekujemo ubrzanje cca *2 (na računalu koje ima barem dvije jezgre)
+    - pazi: generatori slučajnih brojeva nisu višedretveno sigurni pa
+            svaki posao koristi svoj vlastiti
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.Random;
+import java.util.concurrent.Semaphore;
+
+public class BrojPI0A {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000_000;
+
+		ThreadPoolSimple pool = new ThreadPoolSimple(2);
+
+		for(int i = 0; i < 1; i++) {
+			double pi = izracunajParalelnoSimple(pool, numberOfSamples);
+			if(i==0) System.out.println("Pi = " + pi);
+		}
+		
+		
+		final int MEASURES = 1;
+		long t0 = System.currentTimeMillis();
+		for(int attempt = 0; attempt < MEASURES; attempt++) {
+			izracunajParalelnoSimple(pool, numberOfSamples);
+		}		
+		long t1 = System.currentTimeMillis();
+		System.out.println("Vrijeme operacije: "+ (t1-t0)/(double)MEASURES+" ms");
+		
+		pool.shutdown();
+	}
+
+	private static double izracunajParalelnoSimple(ThreadPoolSimple pool, int numberOfSamples) {
+		Semaphore sem = new Semaphore(0);
+		
+		class Posao implements Runnable {
+			int inside;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			public void run() {
+				inside = PIUtil.testNumbersInCircle(samples, new Random());
+				sem.release();
+			}
+		}
+
+		Posao p1 = new Posao(numberOfSamples/2);
+		Posao p2 = new Posao(numberOfSamples - numberOfSamples/2);
+		
+		pool.addJob(p1);
+		pool.addJob(p2);
+
+		sem.acquireUninterruptibly(2);
+		
+		return 4*(p1.inside+p2.inside)/(double)numberOfSamples;
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+
+3a. primjer: bazen dretvi v2;
+    - klijentima želimo ponuditi bogatiji API za upravljanje poslovima
+      (npr. želimo klijentu ponuditi isExecuted(), waitUntilNotExecuted(), ...)
+    - stoga za svaki poslani posao vraćamo opisnik tipa JobInfo
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.concurrent.LinkedBlockingQueue;
+
+public class ThreadPool {
+	private Runnable redLittlePill = () -> {};
+	private LinkedBlockingQueue<JobInfo> jobs = new LinkedBlockingQueue<>();
+	private Thread[] workers;
+	
+	public ThreadPool(int numberOfWorkers) {
+		workers = new Thread[numberOfWorkers];
+		for(int i = 0; i < numberOfWorkers; i++) {
+			workers[i] = new Thread(() -> {
+				while(true) {
+					JobInfo jobInfo = nextJob();
+					if(jobInfo.job==redLittlePill) return;
+					try {
+						jobInfo.job.run();
+					} finally {
+						jobInfo.markExecuted();
+					}
+				}
+			});
+			workers[i].start();
+		}
+	}
+
+	public int numberOfWorkers() {
+		return workers.length;
+	}
+	
+	public void shutdown() {
+		for(int i = 0; i < workers.length; i++) {
+			addJob(redLittlePill);
+		}
+	}
+	
+	public ThreadPool() {
+		this(Runtime.getRuntime().availableProcessors());
+	}
+	
+	public JobInfo addJob(Runnable job) {
+		JobInfo jobInfo = new JobInfo(job);
+		while(true) {
+			try {
+				jobs.put(jobInfo);
+				return jobInfo;
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+	
+	private JobInfo nextJob() {
+		while(true) {
+			try {
+				JobInfo job = jobs.take();
+				return job;
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+	
+	public static class JobInfo {
+		private boolean executed = false;
+		private Runnable job;
+		
+		public JobInfo(Runnable job) {
+			super();
+			this.job = job;
+		}
+		
+		private synchronized void markExecuted() {
+			executed = true;
+			notifyAll();
+		}
+		
+		public synchronized boolean isExecuted() {
+			return executed;
+		}
+		
+		public synchronized void waitUntilNotExecuted() throws InterruptedException {
+			while(!executed) {
+				wait();
+			}
+		}
+		
+	}
+}
+
+----------------------------------------------------------------------------------
+
+3b. primjer: glavni program
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.Semaphore;
+
+import hr.fer.zemris.java.tecaj_7.ThreadPool.JobInfo;
+
+public class BrojPI0B {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000_000;
+
+		ThreadPool pool = new ThreadPool(2);
+
+		for(int i = 0; i < 1; i++) {
+			double pi = izracunajParalelno(pool, numberOfSamples);
+			if(i==0) System.out.println("Pi = " + pi);
+		}
+		
+		
+		final int MEASURES = 1;
+		long t0 = System.currentTimeMillis();
+		for(int attempt = 0; attempt < MEASURES; attempt++) {
+			izracunajParalelno(pool, numberOfSamples);
+		}		
+		long t1 = System.currentTimeMillis();
+		System.out.println("Vrijeme operacije: "+ (t1-t0)/(double)MEASURES+" ms");
+		
+		pool.shutdown();
+	}
+	
+	private static double izracunajParalelno(ThreadPool pool, int numberOfSamples) {
+		class Posao implements Runnable {
+			int inside;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			public void run() {
+				inside = PIUtil.testNumbersInCircle(samples, new Random());
+			}
+		}
+
+		Posao p1 = new Posao(numberOfSamples/2);
+		Posao p2 = new Posao(numberOfSamples - numberOfSamples/2);
+		List<JobInfo> rezultati = new ArrayList<JobInfo>();
+		rezultati.add(pool.addJob(p1));
+		rezultati.add(pool.addJob(p2));
+		for(JobInfo f : rezultati) {
+			while(true) {
+				try {
+					f.waitUntilNotExecuted();
+					break;
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+		
+		return 4*(p1.inside+p2.inside)/(double)numberOfSamples;
+	}
+
+	private static double izracunajParalelnoSkalabilno(ThreadPool pool, int numberOfSamples) {
+		class Posao implements Runnable {
+			int inside;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			public void run() {
+				inside = PIUtil.testNumbersInCircle(samples, new Random());
+			}
+		}
+		
+		List<Posao> poslovi = new ArrayList<>();
+		int left = numberOfSamples;
+		for(int i = 0, n = pool.numberOfWorkers(); i < n; i++) {
+			int howMany = numberOfSamples/n;
+			if(i==n-1) howMany = left;
+			poslovi.add(new Posao(howMany));
+			left -= howMany;
+		}
+
+		List<JobInfo> rezultati = new ArrayList<JobInfo>();
+		for(Posao p : poslovi) {
+			rezultati.add(pool.addJob(p));
+		}
+		
+		for(JobInfo f : rezultati) {
+			while(true) {
+				try {
+					f.waitUntilNotExecuted();
+					break;
+				} catch (InterruptedException e) {
+				}
+			}
+		}
+		
+		int sum = poslovi.stream().mapToInt(p->p.inside).sum();
+		return 4*sum/(double)numberOfSamples;
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+
+4. primjer: javin standardni bazen dretvi - zatvoren iza sučelja ExecutorService
+   - sučelje Executor opisuje objekte koji znaju izvesti posao: 
+     void execute(Runnable job);
+   - primjer implementacije:
+     Executor exec = j -> j.run(); // odmah izvodi predani posao u dretvi pozivatelju
+     exec.execute(()->{System.out.println("Bok!");});
+   - sučelje ExecutorService je nadogradnja koja opisuje apstraktnu uslugu 
+     zadavanja i izvođenja poslova; imamo više implementacija - neke su bazeni dretvi
+   - posao može biti modeliran kao 
+     * Runnable: void run() {...} 
+     * Callable<T>: T call() { T t = ...; return t; }
+   - opisnik posla je modeliran sučeljem Future<R>
+     * ako je posao modeliran s Runnable, R je tipa Void
+     * ako je posao modeliran s Callable<T>, R je tipa T
+   - dretve radnici u uobičajenim implementacijama ExecutorServicea su 
+     regularne dretve (nisu tipa daemon)
+   - neke metode tvornice za stvaranje bazena primaju referencu na ThreadFactory 
+     koji tada može birati implementacije dretvi i njihove karakteristike
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+public class BrojPI1 {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000;
+
+		ExecutorService pool = Executors.newFixedThreadPool(2);
+
+		for(int i = 0; i < 1000; i++) {
+			double pi = izracunajParalelno2(pool, numberOfSamples);
+			//double pi = izracunajParalelno(pool, numberOfSamples);
+			if(i==0) System.out.println("Pi = " + pi);
+		}
+		
+		
+		final int MEASURES = 1_000;
+		long t0 = System.currentTimeMillis();
+		for(int attempt = 0; attempt < MEASURES; attempt++) {
+			izracunajParalelno2(pool, numberOfSamples);
+			//izracunajParalelno(pool, numberOfSamples);
+		}		
+		long t1 = System.currentTimeMillis();
+		System.out.println("Vrijeme operacije: "+ (t1-t0)/(double)MEASURES+" ms");
+		
+		pool.shutdown();
+	}
+
+	private static double izracunajParalelno(ExecutorService pool, int numberOfSamples) {
+		class Posao implements Runnable {
+			int inside;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			public void run() {
+				inside = PIUtil.testNumbersInCircle(samples, new Random());
+			}
+		}
+		Posao p1 = new Posao(numberOfSamples/2);
+		Posao p2 = new Posao(numberOfSamples - numberOfSamples/2);
+		List<Future<?>> rezultati = new ArrayList<Future<?>>();
+		rezultati.add(pool.submit(p1));
+		rezultati.add(pool.submit(p2));
+		for(Future<?> f : rezultati) {
+			while(true) {
+				try {
+					f.get();
+					break;
+				} catch (InterruptedException | ExecutionException e) {
+				}
+			}
+		}
+		return 4*(p1.inside+p2.inside)/(double)numberOfSamples;
+	}
+
+	private static double izracunajParalelno2(ExecutorService pool, int numberOfSamples) {
+		class Posao implements Callable<Integer> {
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			public Integer call() {
+				int inside = PIUtil.testNumbersInCircle(samples, new Random());
+				return inside;
+			}
+		}
+		Posao p1 = new Posao(numberOfSamples/2);
+		Posao p2 = new Posao(numberOfSamples - numberOfSamples/2);
+		List<Future<Integer>> rezultati = new ArrayList<Future<Integer>>();
+		rezultati.add(pool.submit(p1));
+		rezultati.add(pool.submit(p2));
+		int inside = 0;
+		for(Future<Integer> f : rezultati) {
+			while(true) {
+				try {
+					inside += f.get();
+					break;
+				} catch (InterruptedException | ExecutionException e) {
+				}
+			}
+		}
+		return 4*inside/(double)numberOfSamples;
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+5. primjer: model višedretvenosti prikladan za podijeli-izvedi-pa-spoji poslove
+   - ako se posao može rekurzivno dekomponirati (što je često slučaj)
+     * npr. algoritam QuickSort, algoritam MergeSort, ...
+   - rekurzivnu podjelu u podposlove radimo do neke minimalne veličine posla nakon 
+     koje poslove izvodimo direktno (u suprotnom bismo imali loše performanse)
+   - za upravljanje dretvama koristimo ForkJoinPool
+   - poslovi su modelirani kao ForkJoinTask
+     * ne koristimo direktno, već podrazrede
+       + RecursiveAction (void compute() {...})
+         # međurezultati idu u članske varijable
+         # podposlove pozivamo s invokeAll(...)
+         # zatim pokupimo rezultate
+       + RecursiveTask<T> (T compute() {...})
+         # rezultat ide kao povratna vrijednost 
+         # forkamo sve poslove osim zadnjeg
+         # nad zadnjim zovemo compute()
+         # rezultat toga spojimo s .join() nad forkanim poslovima
+           (obrnutim redosljedom od forkanja)
+   - dretve radnici u ForkJoinPool-u su tipa daemon!
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveAction;
+
+public class BrojPI2a {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000;
+
+		ForkJoinPool pool = new ForkJoinPool();
+
+		for(int i = 0; i < 1000; i++) {
+			double pi = izracunajParalelno3(pool, numberOfSamples);
+			if(i==0) System.out.println("Pi = " + pi);
+		}
+		
+		
+		final int MEASURES = 1_000;
+		long t0 = System.currentTimeMillis();
+		for(int attempt = 0; attempt < MEASURES; attempt++) {
+			izracunajParalelno3(pool, numberOfSamples);
+		}		
+		long t1 = System.currentTimeMillis();
+		System.out.println("Vrijeme operacije: "+ (t1-t0)/(double)MEASURES+" ms");
+		
+		pool.shutdown();
+	}
+
+	private static double izracunajParalelno3(ForkJoinPool pool, int numberOfSamples) {
+		class Posao extends RecursiveAction {
+			private static final long serialVersionUID = 1L;
+			int inside;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			protected void compute() {
+				if(samples <= 10_000) {
+					computeDirect();
+					return;
+				}
+				Posao p1 = new Posao(samples/2); 
+				Posao p2 = new Posao(samples - samples/2); 
+				invokeAll(p1, p2);
+				inside = p1.inside + p2.inside;
+			}
+			private void computeDirect() {
+				inside = PIUtil.testNumbersInCircle(samples, new Random());
+			}
+		}
+		Posao p = new Posao(numberOfSamples);
+		pool.invoke(p);
+		return 4*p.inside/(double)numberOfSamples;
+	}
+	
+}
+
+----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_7;
+
+import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveTask;
+
+public class BrojPI2b {
+
+	public static void main(String[] args) {
+		
+		final int numberOfSamples = 100_000;
+
+		ForkJoinPool pool = new ForkJoinPool();
+
+		for(int i = 0; i < 1000; i++) {
+			double pi = izracunajParalelno3(pool, numberOfSamples);
+			if(i==0) System.out.println("Pi = " + pi);
+		}
+
+		final int MEASURES = 1_000;
+		long t0 = System.currentTimeMillis();
+		for(int attempt = 0; attempt < MEASURES; attempt++) {
+			izracunajParalelno3(pool, numberOfSamples);
+		}		
+		long t1 = System.currentTimeMillis();
+		System.out.println("Vrijeme operacije: "+ (t1-t0)/(double)MEASURES+" ms");
+		
+		pool.shutdown();
+	}
+
+	private static double izracunajParalelno3(ForkJoinPool pool, int numberOfSamples) {
+		class Posao extends RecursiveTask<Integer> {
+			private static final long serialVersionUID = 1L;
+			int samples;
+			public Posao(int samples) {
+				super();
+				this.samples = samples;
+			}
+			@Override
+			protected Integer compute() {
+				if(samples <= 1_000) {
+					return computeDirect();
+				}
+				Posao p1 = new Posao(samples/2); 
+				p1.fork();
+				Posao p2 = new Posao(samples - samples/2); 
+				return p2.compute() + p1.join();
+			}
+			private int computeDirect() {
+				return PIUtil.testNumbersInCircle(samples, new Random());
+			}
+		}
+		Posao p = new Posao(numberOfSamples);
+		int inside = pool.invoke(p);
+		return 4*inside/(double)numberOfSamples;
+	}
+	
+}
+----------------------------------------------------------------------------------
+Općenito o podjeli poslova u podposlove i bazenu tipa ExecutorService:
+ - veće poslove želimo dijeliti u manje, kako bismo ih mogli izvoditi paralelno
+ - izvođenje premalih poslova nije učinkovito
+ - ako imamo n jezgri, posao veličine V želimo podijeliti u V/n računski jednako
+   zahtjevnih podposlova i to izravno izvesi
+ - međutim, to često ne znamo napraviti (podjelom ćemo generirati podposlove
+   koji svi neće biti jednako "teški")
+   - ako ih stoga podijelimo u n podposlova, jezgre koje prije završe bit će 
+     besposlene, dok ćemo morati čekati da se odradi najteži dio posla
+   - stoga ipak želimo poslove dijeliti u dosta veći broj podposlova od n,
+     kako bismo osigurati da sve jezgre stalno rade, i time ukupan posao odradimo
+     maksimalno brzo
+----------------------------------------------------------------------------------
+

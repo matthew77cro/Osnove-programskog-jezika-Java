@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Dodajmo jQuery biblioteku... -->
+		<meta charset="UTF-8">
+		<title>Citati (3d)</title>
+		<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+		<script type="text/javascript" src="js/htmlescaping.js"></script>
+		<script type="text/javascript"><!--
+		  // vidi: http://www.w3schools.com/ajax/default.asp
+
+		  $(document).ready( 
+			  function() {
+			  	$("form input").focus();
+		  	  } 
+		  );
+		  
+		  var trenutniTekst = "";
+		  var registriraniTimer = null;
+		  
+		  function obradiKeyUp(noviTekst) {
+			  trenutniTekst = noviTekst;
+			  if(registriraniTimer) {
+				  window.clearTimeout(registriraniTimer);
+				  registriraniTimer = null;
+			  }
+			  if(noviTekst.length==0) {
+				  return;
+			  }
+			  registriraniTimer = window.setTimeout(traziCitate, 5000);
+		  }
+		  
+		  function traziCitate() {
+			$.ajax(
+			  {
+				  url: "servlets/porukef",
+				  data: {
+					  filter: trenutniTekst,
+					  dummy: Math.random()
+				  },
+				  dataType: "json",
+				  success: function(data) {
+						var quotes = data; // već je JSON zbog dataType gore...
+						var html = "";
+						if(quotes.length==0) {
+							html = "Nema rezultata..."
+						} else {
+							for(var i=0; i<quotes.length; i++) {
+								if(i>0 && i<quotes.length) html += "<hr><br>";
+								html += htmlEscape(quotes[i].text)  + "<br><b>" + htmlEscape(quotes[i].author) + "</b><br>";
+							}
+						}
+						$("#citat").html(html);
+				  }
+			  }
+			);
+		  }
+		//--></script>
+	</head>
+	<body>
+	
+		<h1>Demonstracija dohvata citata AJAX-om</h1>
+		
+		<p>Utipkajte ime (ili početak) autora i malo pričekajte...</p>
+		
+		<form>
+		Ime: <input type="text" onkeyup="obradiKeyUp(this.value);">
+		</form>
+		
+		<div id="citat">&nbsp;</div>
+		
+		<p>
+		  <a href="citati3c.html">Prethodni primjer...</a> | 
+		  <a href="citati3e.html">Sljedeći primjer...</a>
+		</p>
+	</body>
+</html>

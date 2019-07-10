@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Upoznajmo se s JSONom! -->
+		<!-- Poslužitelj koristi biblioteku gson... -->
+		
+		<meta charset="UTF-8">
+		<title>Citati (2b)</title>
+		<script type="text/javascript"><!--
+		  // vidi: http://www.w3schools.com/ajax/default.asp
+			
+		  function traziCitat() {
+			var xmlhttp;
+			
+			if (window.XMLHttpRequest) {
+				// code for IE7+, Firefox, Chrome, Opera, Safari
+				xmlhttp=new XMLHttpRequest();
+			} else {
+				// code for IE6, IE5
+				xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			
+			xmlhttp.onreadystatechange = function() {
+				if(xmlhttp.readyState==4 && xmlhttp.status==200) {
+					var text = xmlhttp.responseText;
+					var quotes = JSON.parse(text);
+					var html = "";
+					for(var i=0; i<quotes.length; i++) {
+						if(i>0 && i<quotes.length) html += "<hr><br>";
+						html += quotes[i].text  + "<br><b>" + quotes[i].author + "</b><br>";
+					}
+					document.getElementById("citat").innerHTML = html;
+				}
+			}
+			xmlhttp.open("GET", "servlets/poruke2?dummy=" + Math.random(), true);
+			xmlhttp.send();
+		  }
+		//--></script>
+	</head>
+	<body>
+	
+		<h1>Demonstracija dohvata citata AJAX-om</h1>
+		
+		<p>Pritiskom na sljedeći gumb zatražit ćete dohvat jednog citata.</p>
+		
+		<button onclick="traziCitat();">Zatraži</button>
+		
+		<div id="citat">&nbsp;</div>
+		
+		<p>
+		  <a href="citati2a.html">Prethodni primjer...</a> | 
+		  <a href="citati3a.html">Sljedeći primjer...</a>
+		</p>
+	</body>
+</html>

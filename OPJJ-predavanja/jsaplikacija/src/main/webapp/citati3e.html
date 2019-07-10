@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Radimo malo i sa stilovima... -->
+		<!-- Vidi: http://www.w3schools.com/cssref/default.asp -->
+		
+		<meta charset="UTF-8">
+		<title>Citati (3e)</title>
+		
+		<style>
+		  h1 {font-style: italic;}
+		  h1:HOVER {font-style: italic; color: red;}
+		  
+		  form input { background-color: gray; }
+		  form input:FOCUS { background-color: white; font-family: sans-serif; }
+
+		  #imeLabel { font-family: monospace; }
+		  
+		  .quoteBox { margin-top: 10px; margin-left: 10px; width: 300px; border: 1px solid #FFAAAA; display: inline-block;}
+		  .quoteText {padding-left: 5px; background-color: #FF6666; font-family: cursive; overflow: auto;}
+		  .quoteAuthor {padding-right: 5px; padding-top: 5px; background-color: #66FF66; font-weight: bold; font-size: 0.7em; text-align: right; font-variant: small-caps;}
+		</style>
+		
+		<script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+		<script type="text/javascript" src="js/htmlescaping.js"></script>
+		<script type="text/javascript"><!--
+		  // vidi: http://www.w3schools.com/ajax/default.asp
+
+		  $(document).ready( 
+			  function() {
+			  	$("form input").focus();
+		  	  } 
+		  );
+		  
+		  var trenutniTekst = "";
+		  var registriraniTimer = null;
+		  
+		  function obradiKeyUp(noviTekst) {
+			  trenutniTekst = noviTekst;
+			  if(registriraniTimer) {
+				  window.clearTimeout(registriraniTimer);
+				  registriraniTimer = null;
+			  }
+			  if(noviTekst.length==0) {
+				  return;
+			  }
+			  registriraniTimer = window.setTimeout(traziCitate, 5000);
+		  }
+		  
+		  function traziCitate() {
+			$.ajax(
+			  {
+				  url: "servlets/porukef",
+				  data: {
+					  filter: trenutniTekst,
+					  dummy: Math.random()
+				  },
+				  dataType: "json",
+				  success: function(data) {
+						var quotes = data; // već je JSON zbog dataType gore...
+						var html = "";
+						if(quotes.length==0) {
+							html = "Nema rezultata..."
+						} else {
+							for(var i=0; i<quotes.length; i++) {
+								html += "<div class='quoteBox'><div class='quoteText'>" +htmlEscape(quotes[i].text)  + "</div><div class='quoteAuthor'>" + htmlEscape(quotes[i].author) + "</div></div>";
+							}
+						}
+						$("#citat").html(html);
+				  }
+			  }
+			);
+		  }
+		//--></script>
+	</head>
+	<body>
+	
+		<h1>Demonstracija dohvata citata AJAX-om</h1>
+		
+		<p>Utipkajte ime (ili početak) autora i malo pričekajte...</p>
+		
+		<form>
+		<span id="imeLabel">Ime: </span><input type="text" onkeyup="obradiKeyUp(this.value);">
+		</form>
+		
+		<div id="citat">&nbsp;</div>
+		
+		<p>
+		  <a href="citati3d.html">Prethodni primjer...</a>
+		</p>
+	</body>
+</html>

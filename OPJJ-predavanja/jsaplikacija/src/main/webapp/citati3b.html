@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Implementacija dinamičkog dohvata informacija kako korisnik utipkava filter... -->
+		<meta charset="UTF-8">
+		<title>Citati (3b)</title>
+		<script type="text/javascript"><!--
+		  // vidi: http://www.w3schools.com/ajax/default.asp
+
+		  var trenutniTekst = "";
+		  var registriraniTimer = null;
+		  
+		  function obradiKeyUp(noviTekst) {
+			  trenutniTekst = noviTekst;
+			  if(registriraniTimer) {
+				  window.clearTimeout(registriraniTimer);
+				  registriraniTimer = null;
+			  }
+			  if(noviTekst.length==0) {
+				  return;
+			  }
+			  registriraniTimer = window.setTimeout(traziCitate, 5000);
+		  }
+		  
+		  function traziCitate() {
+			var xmlhttp;
+			
+			if (window.XMLHttpRequest) {
+				// code for IE7+, Firefox, Chrome, Opera, Safari
+				xmlhttp=new XMLHttpRequest();
+			} else {
+				// code for IE6, IE5
+				xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			
+			xmlhttp.onreadystatechange = function() {
+				if(xmlhttp.readyState==4 && xmlhttp.status==200) {
+					var text = xmlhttp.responseText;
+					var quotes = JSON.parse(text);
+					var html = "";
+					if(quotes.length==0) {
+						html = "Nema rezultata..."
+					} else {
+						for(var i=0; i<quotes.length; i++) {
+							if(i>0 && i<quotes.length) html += "<hr><br>";
+							html += quotes[i].text  + "<br><b>" + quotes[i].author + "</b><br>";
+						}
+					}
+					document.getElementById("citat").innerHTML = html;
+				}
+			}
+			xmlhttp.open("GET", "servlets/porukef?filter=" +encodeURIComponent(trenutniTekst) + "&dummy=" + Math.random(), true);
+			xmlhttp.send();
+		  }
+		//--></script>
+	</head>
+	<body>
+	
+		<h1>Demonstracija dohvata citata AJAX-om</h1>
+		
+		<p>Utipkajte ime (ili početak) autora i malo pričekajte...</p>
+		
+		<form>
+		Ime: <input type="text" onkeyup="obradiKeyUp(this.value);">
+		</form>
+		
+		<div id="citat">&nbsp;</div>
+		
+		<p>
+		  <a href="citati3a.html">Prethodni primjer...</a> | 
+		  <a href="citati3c.html">Sljedeći primjer...</a>
+		</p>
+	</body>
+</html>

@@ -1,0 +1,1153 @@
+INFO: dijelovi ove upute nisu sinkronizirani s danim primjerima - gdje postoji razlika, gledati primjere.
+
+====================================
+Sekcija -1: napomena
+====================================
+
+Umjesto da slijedimo tekst dan kroz ostatak ove upute, na Ferka sam već uploadao napravljene aplikacije koje ćemo importati u Eclipse i analizirati. Ostavljam ostatak ovog dokumenta ovdje zbog komentara koji su napisani kroz njega. Također napominjem da je moguće da inačice biblioteka koje su ovdje navedene više nisu ažurne - mijenjao sam pom.xml-ove izravno u aplikacijama koje sam uploadao.
+
+====================================
+Sekcija 0: download potrebnoga
+====================================
+
+Koristimo Hibernate kao implementaciju tehnologije JPA:
+
+http://hibernate.org/
+
+Umjesto skidanja potrebnih biblioteka, ovo su potrebne ovisnosti:
+
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-core</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-c3p0</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-ehcache</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+
+Dohvatite dokumentaciju za JPA specifikaciju 2.1:
+https://jcp.org/aboutJava/communityprocess/final/jsr338/index.html
+Klik na "To download the specification to read, for evaluation: Download", i potom potražite PDF:
+JavaPersistence.pdf (4,358 KB); da biste mogli skinuti, iznad toga imate mali formular u kojem morate nakliknuti radiobutton "Accept License Agreement".
+
+====================================
+Sekcija 1: Priprema projekta
+====================================
+
+Na predavanju ćemo napraviti novu web-aplikaciju kroz maven. Parametri su:
+gid: hr.fer.zemris.java.jmbag0000000000.dbapps     <== zamijeniti 0000000000 Vašim JMBAG-om
+aid: dbapp-bazaorm
+
+Struktura projekta je standardna:
+
+U Eclipseovom workspaceu napravite novi direktorij: dbapp-bazaorm. U njega stavite pom.xml:
+
+----------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>hr.fer.zemris.java.jmbag0000000000.dbapps</groupId>
+  <artifactId>dbapp-bazaorm</artifactId>
+  <version>1.0</version>
+  <packaging>jar</packaging>
+
+  <!-- configuration of basic properties -->
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.source>9</maven.compiler.source>
+    <maven.compiler.target>9</maven.compiler.target>
+    <maven.compiler.showDeprecation>true</maven.compiler.showDeprecation>
+  </properties>
+
+  <dependencies>
+        <!-- Jezgra hibernate-a; entitymanager -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-core</artifactId>
+	    <version>5.3.1.Final</version>
+	</dependency>
+        <!-- podrška za connection pooling -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-c3p0</artifactId>
+	    <version>5.3.1.Final</version>
+	</dependency>
+        <!-- podrška za 2nd-level cache -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-ehcache</artifactId>
+	    <version>5.3.1.Final</version>
+	</dependency>
+	<!-- http://mvnrepository.com/artifact/org.apache.derby/derbyclient -->
+	<dependency>
+	    <groupId>org.apache.derby</groupId>
+	    <artifactId>derbyclient</artifactId>
+	    <version>10.14.2.0</version>
+	</dependency>
+        <!-- junit testing: -->
+  	<dependency>
+  		<groupId>junit</groupId>
+  		<artifactId>junit</artifactId>
+  		<version>4.12</version>
+  		<scope>test</scope>
+  	</dependency>
+  </dependencies>
+
+</project>
+
+Linux:
+
+cd dbapp-bazaorm
+mkdir -p src/main/java
+mkdir -p src/main/resources
+mkdir -p src/test/java
+
+Windows:
+
+cd dbapp-bazaorm
+mkdir src\main\java
+mkdir src\main\resources
+mkdir src\test\java
+
+Importajte projekt u Eclipse.
+
+-------------
+Priprema baze
+-------------
+Pokrenite Derby bazu; pokrenite klijenta ij i napravite bazu blogBaza kojoj može pristupiti samo ovlašteni korisnik čije je korisničko ime 'blogDBAdmin' i zaporka 'blogDBPassword':
+
+********************************************************************************************
+connect 'jdbc:derby://localhost:1527/blogBaza;user=sa;password=sapwd22;create=true';
+CALL SYSCS_UTIL.SYSCS_CREATE_USER('blogDBAdmin', 'blogDBPassword');
+CALL SYSCS_UTIL.SYSCS_SET_DATABASE_PROPERTY('derby.database.fullAccessUsers', 'sa,blogDBAdmin');
+disconnect;
+********************************************************************************************
+
+Probajte se spojiti da vidite da sve radi:
+
+********************************************************************************************
+connect 'jdbc:derby://localhost:1527/blogBaza;user=blogDBAdmin;password=blogDBPassword';
+********************************************************************************************
+
+---------------------------
+Konfiguracija JPA providera
+---------------------------
+
+Napravite src/main/resources/META-INF direktorij (pazite na velika slova) i unutra smjestite datoteku 
+persistence.xml:
+-----------------------------------------------------------------------------------
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_1.xsd"
+	version="2.1">
+	<persistence-unit name="baza.podataka.za.blog" transaction-type="RESOURCE_LOCAL">
+		<provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+
+		<properties>
+
+			<!-- Generalne postavke Hibernate-a -->			
+			<!-- Za informacije vidi poglavlje 3, od 3.3 na dalje u službenoj dokumentaciji: -->
+			<!-- http://docs.jboss.org/hibernate/orm/4.3/manual/en-US/html_single/ -->
+			<!-- ============================== -->
+			<property name="hibernate.archive.autodetection" value="class" />
+			<property name="hibernate.hbm2ddl.auto" value="create-drop" /> <!-- mogućnosti: create, create-drop, update, validate -->
+			<property name="hibernate.format_sql" value="true" /> <!-- kasnije na false -->
+			<property name="hibernate.show_sql" value="true" /> <!-- kasnije na false -->
+			<property name="hibernate.use_sql_comments" value="true" />  <!-- kasnije staviti na false -->
+			<property name="hibernate.bytecode.use_reflection_optimizer" value="true" />
+			<property name="hibernate.bytecode.provider" value="javassist" />
+			<property name="hibernate.ejb.naming_strategy_delegator" value="org.hibernate.cfg.naming.ImprovedNamingStrategyDelegator" />
+			<property name="hibernate.id.new_generator_mappings" value="true" />
+			<property name="hibernate.jdbc.use_get_generated_keys" value="true" />
+			
+			<!-- Postavke za spajanje na bazu podataka -->			
+			<!-- ===================================== -->
+			<property name="hibernate.connection.driver_class" value="org.apache.derby.jdbc.ClientDriver" />
+			<property name="hibernate.connection.url" value="jdbc:derby://localhost:1527/blogBaza" />
+			<property name="hibernate.connection.username" value="blogDBAdmin" />
+			<property name="hibernate.connection.password" value="blogDBPassword" />
+			<property name="hibernate.connection.CharSet" value="utf8" />
+			<property name="hibernate.connection.characterEncoding" value="utf8" />
+			<property name="hibernate.connection.useUnicode" value="true" />
+			<property name="hibernate.dialect" value="org.hibernate.dialect.DerbyTenSevenDialect" />
+			
+			<!-- Postavke transakcijskog rada -->			
+			<!-- ============================ -->
+			<property name="hibernate.connection.isolation" value="2"/> <!-- isolation level; 2: read_commited, 4: repeatable_read -->
+
+			<!-- Konfiguracija pool-a za bazu podataka -->			
+			<!-- ===================================== -->
+			<property name="hibernate.c3p0.min_size" value="5" />
+			<property name="hibernate.c3p0.max_size" value="20" />
+			<property name="hibernate.c3p0.timeout" value="1800" />
+			<property name="hibernate.c3p0.max_statements" value="50" />
+			<property name="hibernate.c3p0.idle_test_period" value="3600" />
+			
+		</properties>
+	</persistence-unit>
+</persistence>
+-----------------------------------------------------------------------------------
+
+META-INF/persistence.xml ==> sadrži opis svih perzistencijskih kontekstova koji su definirani i koji se koriste kroz specifikaciju JPA. Svaki pojedini kontekst naziva se perzistencijska jedinica (engl. persistence unit) i mora imati svoje jedinstveno ime. U aplikaciji ćemo to ime koristiti prilikom rada s razredom  javax.persistence.EntityManagerFactory.
+
+---------------------------
+Izrada modela domene
+---------------------------
+
+Napravite razrede koji modeliraju jedan zapis na blogu te jedan komentar na tom zapisu. Zapis može imati više komentara.
+
+BlogEntry:
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.model;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+public class BlogEntry {
+
+	private Long id;
+	private List<BlogComment> comments = new ArrayList<>();
+	private Date createdAt;
+	private Date lastModifiedAt;
+	private String title;
+	private String text;
+	
+	public Long getId() {
+		return id;
+	}
+	
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public List<BlogComment> getComments() {
+		return comments;
+	}
+	
+	public void setComments(List<BlogComment> comments) {
+		this.comments = comments;
+	}
+
+	public Date getCreatedAt() {
+		return createdAt;
+	}
+
+	public void setCreatedAt(Date createdAt) {
+		this.createdAt = createdAt;
+	}
+
+	public Date getLastModifiedAt() {
+		return lastModifiedAt;
+	}
+
+	public void setLastModifiedAt(Date lastModifiedAt) {
+		this.lastModifiedAt = lastModifiedAt;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
+	}
+
+	public String getText() {
+		return text;
+	}
+
+	public void setText(String text) {
+		this.text = text;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		BlogEntry other = (BlogEntry) obj;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		return true;
+	}
+}
+-----------------------------------------------------------------------------------
+
+BlogComment:
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.model;
+
+import java.util.Date;
+
+public class BlogComment {
+
+	private Long id;
+	private BlogEntry blogEntry;
+	private String usersEMail;
+	private String message;
+	private Date postedOn;
+	
+	public Long getId() {
+		return id;
+	}
+	
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public BlogEntry getBlogEntry() {
+		return blogEntry;
+	}
+	
+	public void setBlogEntry(BlogEntry blogEntry) {
+		this.blogEntry = blogEntry;
+	}
+
+	public String getUsersEMail() {
+		return usersEMail;
+	}
+
+	public void setUsersEMail(String usersEMail) {
+		this.usersEMail = usersEMail;
+	}
+
+	public String getMessage() {
+		return message;
+	}
+
+	public void setMessage(String message) {
+		this.message = message;
+	}
+
+	public Date getPostedOn() {
+		return postedOn;
+	}
+
+	public void setPostedOn(Date postedOn) {
+		this.postedOn = postedOn;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		BlogComment other = (BlogComment) obj;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		return true;
+	}
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------
+Anotiranje modela domene uporabom JPA anotacija
+-----------------------------------------------
+
+Prilikom uporabe anotacija potrebno se odlučiti što se anotira: varijable ili getteri. Mi ćemo u ovoj vježbi anotacije postavljati na gettere. Anotacije uvijek biramo iz paketa javax.persistence.
+
+BlogEntry:
+ * sam razred anotirajte s:
+    @Entity
+    @Table(name="blog_entries")
+ * getId() anotirajte s:
+	@Id @GeneratedValue
+ * getComments() anotirajte s:
+	@OneToMany(mappedBy="blogEntry",fetch=FetchType.LAZY, cascade=CascadeType.PERSIST, orphanRemoval=true)
+	@OrderBy("postedOn")
+ * getCreatedAt() anotirajte s:
+	@Temporal(TemporalType.TIMESTAMP)
+	@Column(nullable=false)
+ * getLastModifiedAt() anotirajte s:
+	@Temporal(TemporalType.TIMESTAMP)
+	@Column(nullable=true)
+ * getTitle() anotirajte s:
+	@Column(length=200,nullable=false)
+ * getText() anotirajte s:
+	@Column(length=4096,nullable=false)
+
+BlogComment:
+ * sam razred anotirajte s:
+    @Entity
+    @Table(name="blog_comments")
+ * getId() anotirajte s:
+	@Id @GeneratedValue
+ * getBlogEntry() anotirajte s:
+	@ManyToOne
+	@JoinColumn(nullable=false)
+ * getUsersEMail() anotirajte s:
+	@Column(length=100,nullable=false)
+ * getMessage() anotirajte s:
+	@Column(length=4096,nullable=false)
+ * getPostedOn() anotirajte s:
+	@Temporal(TemporalType.TIMESTAMP)
+	@Column(nullable=false)
+
+Time smo uspostavili dvosmjernu relaciju "comments" između razreda BlogEntry i BlogComment koja je u BlogEntry modelirana listom; pri tome je BlogComment strana koja upravlja relacijom (u svrhu perzistencije); drugi kraj relacije je stoga mapiran atributom "mappedBy". Međutim, zadaća je programera oba kraja relacije održavati konzistentnima.
+
+Dodajte sada u persistence.xml još i mapiranje za ta dva razreda. Prije taga <properties> ubacite:
+
+  <class>hr.fer.zemris.java.tecaj_13.model.BlogEntry</class>
+  <class>hr.fer.zemris.java.tecaj_13.model.BlogComment</class>
+
+================================================
+Sekcija 2: Jednostavan komandno-linijski program
+================================================
+
+Napravite program Example1, i zakomentirajte sve što uzrokuje grešku:
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.console;
+
+import java.util.Date;
+import java.util.List;
+
+import hr.fer.zemris.java.tecaj_13.model.BlogComment;
+import hr.fer.zemris.java.tecaj_13.model.BlogEntry;
+
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.Persistence;
+
+public class Example1 {
+
+	public static void main(String[] args) {
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("baza.podataka.za.blog");  
+
+		// 1. korak - stvaranje novog blog zapisa...
+		// -----------------------------------------
+		System.out.println("Dodajem blog zapis.");
+		BlogEntry blogEntry = dodajZapis(emf);
+		System.out.println("Dodajem blog zapis - gotovo.");
+		
+		Long blogEntryID = blogEntry.getId();
+		
+		// 2. korak - dodavanje dva komentara...
+		// -----------------------------------------
+		System.out.println("Dodajem komentar.");
+		dodajKomentar(emf, blogEntryID, "Blog ti je super!");
+		System.out.println("Dodajem komentar - gotovo.");
+		
+		try { Thread.sleep(1000); } catch(InterruptedException ex) {}
+		
+		System.out.println("Dodajem komentar.");
+		dodajKomentar(emf, blogEntryID, "Vau!");
+		System.out.println("Dodajem komentar - gotovo.");
+		
+		try { Thread.sleep(1000); } catch(InterruptedException ex) {}
+		
+		System.out.println("Dodajem komentar.");
+		dodajKomentar(emf, blogEntryID, "Još jedan komentar.");
+		System.out.println("Dodajem komentar - gotovo.");
+
+		System.out.println("Primjer upita.");
+		primjerUpita(emf, blogEntryID);
+		System.out.println("Primjer upita - gotovo.");
+
+		try { Thread.sleep(1000); } catch(InterruptedException ex) {}
+		
+		System.out.println("Primjer upita 2.");
+		primjerUpita2(emf, blogEntryID);
+		System.out.println("Primjer upita 2 - gotovo.");
+		
+		emf.close();
+	}
+
+	public static BlogEntry dodajZapis(EntityManagerFactory emf) {
+		EntityManager em = emf.createEntityManager();
+		em.getTransaction().begin();
+		
+		BlogEntry blogEntry = new BlogEntry();
+		blogEntry.setCreatedAt(new Date());
+		blogEntry.setLastModifiedAt(blogEntry.getCreatedAt());
+		blogEntry.setTitle("Moj prvi blog");
+		blogEntry.setText("Ovo je moj prvi blog zapis.");
+		
+		em.persist(blogEntry);
+		
+		em.getTransaction().commit();
+		em.close();
+		
+		return blogEntry;
+	}
+}
+-----------------------------------------------------------------------------------
+
+Pokrenite program i uvjerite se da je zapis pohranjen u bazu.
+
+Dodajte u program metodu dodajKomentar, odkomentirajte u main-u mjesto gdje se ona poziva i provjerite rezultat izvođenja. Metoda je dana u nastavku:
+
+-----------------------------------------------------------------------------------
+	public static void dodajKomentar(EntityManagerFactory emf, Long blogEntryID, String message) {
+		EntityManager em = emf.createEntityManager();
+		em.getTransaction().begin();
+
+		BlogEntry blogEntry = em.find(BlogEntry.class, blogEntryID);
+		
+		BlogComment blogComment = new BlogComment();
+		blogComment.setUsersEMail("ivica@host.com");
+		blogComment.setPostedOn(new Date());
+		blogComment.setMessage(message);
+		blogComment.setBlogEntry(blogEntry);
+		
+		em.persist(blogComment);
+
+		blogEntry.getComments().add(blogComment);
+		
+		em.getTransaction().commit();
+		em.close();
+	}
+-----------------------------------------------------------------------------------
+	
+Dodajte u program metodu primjerUpita, odkomentirajte u main-u mjesto gdje se ona poziva i provjerite rezultat izvođenja. Metoda je dana u nastavku:
+
+-----------------------------------------------------------------------------------
+	/**
+	 * Uporaba jezika JPA-QL
+	 * @param emf
+	 * @param blogEntryID
+	 */
+	private static void primjerUpita(EntityManagerFactory emf, Long blogEntryID) {
+		EntityManager em = emf.createEntityManager();
+		em.getTransaction().begin();
+		
+		BlogEntry blogEntry = em.find(BlogEntry.class, blogEntryID);
+
+		@SuppressWarnings("unchecked")
+		List<BlogComment> comments = 
+				(List<BlogComment>)em.createQuery("select b from BlogComment as b where b.blogEntry=:be")
+					.setParameter("be", blogEntry)
+					.getResultList();
+		
+		for(BlogComment bc : comments) {
+			System.out.println("Blog ["+bc.getBlogEntry().getTitle()+"] ima komentar: ["+bc.getMessage()+"]");
+		}
+		
+		em.getTransaction().commit();
+		em.close();
+	}
+-----------------------------------------------------------------------------------
+	
+Dodajte u program metodu primjerUpita2. Na razred BlogEntry dodajte sljedeću anotaciju:
+
+@NamedQueries({
+	@NamedQuery(name="BlogEntry.upit1",query="select b from BlogComment as b where b.blogEntry=:be and b.postedOn>:when")
+})
+
+Odkomentirajte u main-u mjesto gdje se ta metoda poziva i provjerite rezultat izvođenja. Metoda je dana u nastavku:
+-----------------------------------------------------------------------------------
+	/**
+	 * Uporaba jezika JPA-QL
+	 * @param emf
+	 * @param blogEntryID
+	 */
+	private static void primjerUpita2(EntityManagerFactory emf, Long blogEntryID) {
+		EntityManager em = emf.createEntityManager();
+		em.getTransaction().begin();
+		
+		BlogEntry blogEntry = em.find(BlogEntry.class, blogEntryID);
+
+		@SuppressWarnings("unchecked")
+		List<BlogComment> comments = 
+				(List<BlogComment>)em.createNamedQuery("BlogEntry.upit1")
+					.setParameter("be", blogEntry)
+					.setParameter("when", new Date(new Date().getTime() - 2000))
+					.getResultList();
+		
+		for(BlogComment bc : comments) {
+			System.out.println("Blog ["+bc.getBlogEntry().getTitle()+"] ima komentar: ["+bc.getMessage()+"]");
+		}
+		
+		em.getTransaction().commit();
+		em.close();
+	}
+-----------------------------------------------------------------------------------
+
+============================================
+Sekcija 3: podrška za uporabu 2nd level keša
+============================================
+Iz hibernate ZIP-a iz direktorija lib u direktorij lib Vaše web-aplikacije iskopirajte:
+optional/ehcache/* (samo sadržaj, ne sam direktorij)
+
+Potom sve te biblioteke dodajte i Eclipse-u u Build-Path.
+
+Zgodan tekst: http://blog.jhades.org/setup-and-gotchas-of-the-hibernate-second-level-and-query-caches/
+Zgodan tekst: http://techblog.personalcapital.com/2014/04/hibernate-second-level-cache-using-ehcache/
+
+U persistence.xml na kraj dodati još i sljedeće parametre:
+
+persistence.xml:
+-----------------------------------------------------------------------------------
+			<!-- Postavke za 2nd-level kojima hibernate-u kazemo sta da koristi kao implementaciju -->			
+			<!-- ================================================================================= -->
+			<property name="hibernate.cache.region.factory_class" value="org.hibernate.cache.ehcache.EhCacheRegionFactory "/>
+			<property name="hibernate.cache.use_query_cache" value="true" />
+			<property name="hibernate.cache.use_second_level_cache" value="true" />
+			<property name="hibernate.generate_statistics" value="false" />
+			<property name="net.sf.ehcache.configurationResourceName" value="/ehcache.xml" />
+-----------------------------------------------------------------------------------
+
+te u istu datoteku ispred taga <properties> dodajte još i:
+
+-----------------------------------------------------------------------------------
+		<shared-cache-mode>ENABLE_SELECTIVE</shared-cache-mode> <!-- NONE, ALL, ENABLE_SELECTIVE, DISABLE_SELECTIVE -->
+-----------------------------------------------------------------------------------
+
+Dodajte nad razredom BlogEntry našeg modela anotaciju @Cacheable(true).
+		
+U direktorij src/main/resources dodati datoteku ehcache.xml kako je prikazano u nastavku. Ovo je konfiguracija konkretnog cache-providera kojeg će hibernate koristiti za usluge keširanja.
+
+ehcache.xml:
+-----------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<ehcache	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:noNamespaceSchemaLocation="ehcache.xsd"
+			monitoring="autodetect" dynamicConfig="true" updateCheck="false">
+
+	<diskStore path="java.io.tmpdir/ehcache" />
+
+	<!-- Postavke zajedničkog cache-a koji se koristi ako nije odabran niti jedan drugi. -->
+	<defaultCache	maxElementsInMemory="100" eternal="false"
+					timeToIdleSeconds="120" timeToLiveSeconds="120" diskSpoolBufferSizeMB="30"
+					maxElementsOnDisk="1000" diskExpiryThreadIntervalSeconds="120"
+					memoryStoreEvictionPolicy="LRU" statistics="true"/>
+	
+	<!-- Cache koji se koristi za pamćenje rezultata SQL upita u bazu. -->
+	<!-- maxElementsInMemory: koliko kompletnih SQL selectova držati u memoriji -->
+	<cache name="org.hibernate.cache.internal.StandardQueryCache"
+		maxElementsInMemory="5" eternal="false" timeToLiveSeconds="120"
+		overflowToDisk="true" /> 
+
+	<!-- Cache koji se koristi za evidenciju timestampa zadnje modifikacije u svakoj od tablica baze. -->
+	<!-- maxElementsInMemory odgovara broju tablica -->
+	<cache name="org.hibernate.cache.spi.UpdateTimestampsCache"
+		maxElementsInMemory="10" eternal="true" overflowToDisk="true" />
+
+	<!-- Cache koji se koristi za entitete iz paketa hr.fer.zemris.java.tecaj_13.model. -->
+	<cache name="hr.fer.zemris.java.tecaj_13.model.BlogEntry" eternal="false"
+			maxElementsInMemory="10"
+			timeToIdleSeconds="120" timeToLiveSeconds="120" diskSpoolBufferSizeMB="30"
+			maxElementsOnDisk="1000" diskExpiryThreadIntervalSeconds="120"
+			memoryStoreEvictionPolicy="LRU" statistics="true"/>
+	<cache name="hr.fer.zemris.java.tecaj_13.model.BlogComment" eternal="false"
+			maxElementsInMemory="100"
+			timeToIdleSeconds="120" timeToLiveSeconds="120" diskSpoolBufferSizeMB="30"
+			maxElementsOnDisk="1000" diskExpiryThreadIntervalSeconds="120"
+			memoryStoreEvictionPolicy="LRU" statistics="true"/>
+		
+</ehcache>
+-----------------------------------------------------------------------------------
+
+Isprobajte da se 2nd level cache doista koristi!
+
+Interesantniji linkovi:
+http://www.slideshare.net/wwwsahoo/java-persistence-api-20-an-overview
+http://www.ehcache.org/documentation/user-guide/hibernate
+http://docs.jboss.org/hibernate/orm/4.0/devguide/en-US/html/ch06.html
+http://stackoverflow.com/questions/6282405/working-example-of-hibernate-3-6-2-2nd-level-caching-with-jpa2
+http://www.objectdb.com/java/jpa/persistence
+
+==========================================
+Sekcija 4: web aplikacija koja koristi JPA
+==========================================
+
+U Eclipseovom workspace direktoriju napravite kopiju projekta pod novim imenom: webapp-bazaorm. U pom.xml promijenite tip (da generira war), artifactID u webapp-bazaorm, dodajte ovisnosti prema servlet/jsp/jstl* bibliotekama, dodajte jetty-plugin i podesite konačno ime. Konačan pom.xml trebao bi izgledati ovako:
+
+-----------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>hr.fer.zemris.java.jmbag0000000000.webapps</groupId>
+  <artifactId>webapp-bazaorm</artifactId>
+  <version>1.0</version>
+  <packaging>war</packaging>
+
+  <!-- configuration of basic properties -->
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.showDeprecation>true</maven.compiler.showDeprecation>
+  </properties>
+
+  <dependencies>
+        <!-- Jezgra hibernate-a; entitymanager -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-core</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+        <!-- podrška za connection pooling -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-c3p0</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+        <!-- podrška za 2nd-level cache -->
+	<dependency>
+	    <groupId>org.hibernate</groupId>
+	    <artifactId>hibernate-ehcache</artifactId>
+	    <version>5.2.10.Final</version>
+	</dependency>
+	<!-- http://mvnrepository.com/artifact/org.apache.derby/derbyclient -->
+	<dependency>
+	    <groupId>org.apache.derby</groupId>
+	    <artifactId>derbyclient</artifactId>
+	    <version>10.13.1.1</version>
+	</dependency>
+
+        <!-- servlet/jsp api support: -->
+  	<dependency>
+  		<groupId>javax.servlet</groupId>
+  		<artifactId>javax.servlet-api</artifactId>
+  		<version>3.1.0</version>
+  		<scope>provided</scope>
+  	</dependency>
+  	<dependency>
+  		<groupId>javax.servlet.jsp</groupId>
+  		<artifactId>javax.servlet.jsp-api</artifactId>
+  		<version>2.3.1</version>
+  		<scope>provided</scope>
+  	</dependency>
+
+        <!-- jstl support: -->
+  	<dependency>
+  		<groupId>javax.servlet.jsp.jstl</groupId>
+  		<artifactId>javax.servlet.jsp.jstl-api</artifactId>
+  		<version>1.2.1</version>
+  	</dependency>
+  	<dependency>
+  		<groupId>org.glassfish.web</groupId>
+  		<artifactId>javax.servlet.jsp.jstl</artifactId>
+  		<version>1.2.1</version>
+  		<exclusions>
+  			<exclusion>
+  				<artifactId>jstl-api</artifactId>
+  				<groupId>javax.servlet.jsp.jstl</groupId>
+  			</exclusion>
+  		</exclusions>
+  	</dependency>
+        <!-- junit testing: -->
+  	<dependency>
+  		<groupId>junit</groupId>
+  		<artifactId>junit</artifactId>
+  		<version>4.12</version>
+  		<scope>test</scope>
+  	</dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.eclipse.jetty</groupId>
+        <artifactId>jetty-maven-plugin</artifactId>
+        <version>9.4.10.v20180503</version>
+        <configuration>
+          <scanIntervalSeconds>10</scanIntervalSeconds>
+          <webApp>
+            <contextPath>/webapp-bazaorm</contextPath>
+          </webApp>
+        </configuration>
+      </plugin>
+    </plugins>
+    <finalName>webapp-bazaorm</finalName>
+  </build>
+
+</project>
+-----------------------------------------------------------------------------------
+
+Napravite još src/main/webapp te unutra WEB-INF u koji smjestite web.xml:
+-----------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+
+<web-app xmlns="http://java.sun.com/xml/ns/javaee"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
+                      http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd"
+  version="3.0"
+  metadata-complete="false">
+
+  <display-name>Web aplikacija s JPA</display-name>
+  <description>
+     Web aplikacija s JPA
+  </description>
+
+</web-app>
+-----------------------------------------------------------------------------------
+
+Struktura aplikacije:
+
+* paket hr.fer.zemris.java.tecaj_13.dao
+  => sučelja i apstrakcija vezana uz dohvat implementacije podatkovnog sloja, iznimke i slično
+* paket hr.fer.zemris.java.tecaj_13.dao.jpa
+  => implementacija podatkovnog sloja uporabom tehnologije JPA; podrška ugradnji u web aplikacije (definira Filter)
+* paket hr.fer.zemris.java.tecaj_13.model
+  => model domene; razredi koji čine domenu aplikacije
+* paket hr.fer.zemris.java.tecaj_13.web.init
+  => listeneri web aplikacije; inicijalizacija podatkovnog sloja
+* paket hr.fer.zemris.java.tecaj_13.web.servlets
+  => servleti
+
+Krenimo redom.
+
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao;
+
+public class DAOException extends RuntimeException {
+
+	private static final long serialVersionUID = 1L;
+
+	public DAOException(String message, Throwable cause) {
+		super(message, cause);
+	}
+
+	public DAOException(String message) {
+		super(message);
+	}
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao;
+
+import hr.fer.zemris.java.tecaj_13.model.BlogEntry;
+
+public interface DAO {
+
+	/**
+	 * Dohvaća entry sa zadanim <code>id</code>-em. Ako takav entry ne postoji,
+	 * vraća <code>null</code>.
+	 * 
+	 * @param id ključ zapisa
+	 * @return entry ili <code>null</code> ako entry ne postoji
+	 * @throws DAOException ako dođe do pogreške pri dohvatu podataka
+	 */
+	public BlogEntry getBlogEntry(Long id) throws DAOException;
+	
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao.jpa;
+
+import javax.persistence.EntityManagerFactory;
+
+public class JPAEMFProvider {
+
+	public static EntityManagerFactory emf;
+	
+	public static EntityManagerFactory getEmf() {
+		return emf;
+	}
+	
+	public static void setEmf(EntityManagerFactory emf) {
+		JPAEMFProvider.emf = emf;
+	}
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao.jpa;
+
+import hr.fer.zemris.java.tecaj_13.dao.DAOException;
+
+import javax.persistence.EntityManager;
+
+public class JPAEMProvider {
+
+	private static ThreadLocal<EntityManager> locals = new ThreadLocal<>();
+
+	public static EntityManager getEntityManager() {
+		EntityManager em = locals.get();
+		if(em==null) {
+			em = JPAEMFProvider.getEmf().createEntityManager();
+			em.getTransaction().begin();
+			locals.set(em);
+		}
+		return em;
+	}
+
+	public static void close() throws DAOException {
+		EntityManager em = locals.get();
+		if(em==null) {
+			return;
+		}
+		DAOException dex = null;
+		try {
+			em.getTransaction().commit();
+		} catch(Exception ex) {
+			dex = new DAOException("Unable to commit transaction.", ex);
+		}
+		try {
+			em.close();
+		} catch(Exception ex) {
+			if(dex!=null) {
+				dex = new DAOException("Unable to close entity manager.", ex);
+			}
+		}
+		locals.remove();
+		if(dex!=null) throw dex;
+	}
+	
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao.jpa;
+
+import hr.fer.zemris.java.tecaj_13.dao.DAO;
+import hr.fer.zemris.java.tecaj_13.dao.DAOException;
+import hr.fer.zemris.java.tecaj_13.model.BlogEntry;
+
+public class JPADAOImpl implements DAO {
+
+	@Override
+	public BlogEntry getBlogEntry(Long id) throws DAOException {
+		BlogEntry blogEntry = JPAEMProvider.getEntityManager().find(BlogEntry.class, id);
+		return blogEntry;
+	}
+
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao.jpa;
+
+import java.io.IOException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.annotation.WebFilter;
+
+@WebFilter("/servleti/*")
+public class JPAFilter implements Filter {
+
+	@Override
+	public void init(FilterConfig filterConfig) throws ServletException {
+	}
+
+	@Override
+	public void doFilter(ServletRequest request, ServletResponse response,
+			FilterChain chain) throws IOException, ServletException {
+		try {
+			chain.doFilter(request, response);
+		} finally {
+			JPAEMProvider.close();
+		}
+	}
+
+	@Override
+	public void destroy() {
+	}
+	
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.dao;
+
+import hr.fer.zemris.java.tecaj_13.dao.jpa.JPADAOImpl;
+
+public class DAOProvider {
+
+	private static DAO dao = new JPADAOImpl();
+	
+	public static DAO getDAO() {
+		return dao;
+	}
+	
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.web.init;
+
+import hr.fer.zemris.java.tecaj_13.dao.jpa.JPAEMFProvider;
+
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.Persistence;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
+
+@WebListener
+public class Inicijalizacija implements ServletContextListener {
+
+	@Override
+	public void contextInitialized(ServletContextEvent sce) {
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory("baza.podataka.za.blog");  
+		sce.getServletContext().setAttribute("my.application.emf", emf);
+		JPAEMFProvider.setEmf(emf);
+	}
+
+	@Override
+	public void contextDestroyed(ServletContextEvent sce) {
+		JPAEMFProvider.setEmf(null);
+		EntityManagerFactory emf = (EntityManagerFactory)sce.getServletContext().getAttribute("my.application.emf");
+		if(emf!=null) {
+			emf.close();
+		}
+	}
+}
+-----------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------
+package hr.fer.zemris.java.tecaj_13.web.servlets;
+
+import hr.fer.zemris.java.tecaj_13.dao.DAOProvider;
+import hr.fer.zemris.java.tecaj_13.model.BlogEntry;
+
+import java.io.IOException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+@WebServlet("/servleti/prikazi")
+public class PrikazBloga extends HttpServlet {
+
+	private static final long serialVersionUID = 1L;
+
+	@Override
+	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		String sID = req.getParameter("id");
+		Long id = null;
+		try {
+			id = Long.valueOf(sID);
+		} catch(Exception ignorable) {
+		}
+		if(id!=null) {
+			BlogEntry blogEntry = DAOProvider.getDAO().getBlogEntry(id);
+			if(blogEntry!=null) {
+				req.setAttribute("blogEntry", blogEntry);
+			}
+		}
+		req.getRequestDispatcher("/WEB-INF/pages/Prikaz.jsp").forward(req, resp);
+	}
+	
+}
+-----------------------------------------------------------------------------------
+
+/WEB-INF/pages/Prikaz.jsp:
+-----------------------------------------------------------------------------------
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<html>
+  <body>
+
+  <c:choose>
+    <c:when test="${blogEntry==null}">
+      Nema unosa!
+    </c:when>
+    <c:otherwise>
+      <h1><c:out value="${blogEntry.title}"/></h1>
+      <p><c:out value="${blogEntry.text}"/></p>
+      <c:if test="${!blogEntry.comments.isEmpty()}">
+      <ul>
+      <c:forEach var="e" items="${blogEntry.comments}">
+        <li><div style="font-weight: bold">[Korisnik=<c:out value="${e.usersEMail}"/>] <c:out value="${e.postedOn}"/></div><div style="padding-left: 10px;"><c:out value="${e.message}"/></div></li>
+      </c:forEach>
+      </ul>
+      </c:if>
+    </c:otherwise>
+  </c:choose>
+
+  </body>
+</html>
+-----------------------------------------------------------------------------------
+
+Prebacite u persistence.xml svojstvo hibernate.hbm2ddl.auto na vrijednost "update" i pokrenite još jednom onu komandnolinijsku aplikaciju - sada će podatci ostati u bazi.
+
+Deployajte web aplikaciju u tomcata i zatražite:
+
+http://localhost:8080/webapp-bazaorm/servleti/prikazi?id=1
+
+I to je to! Jedva da smo zagrebali ispod površine što se tiče uporabe JPA, ali sada barem znate gdje i što dalje tražiti.
+
+==================================================
+Podsjetnik: JPQL - Java Persistence Query Language
+==================================================
+
+Za sintaksu vidi:
+http://docs.oracle.com/javaee/6/tutorial/doc/bnbtg.html
+
+Jezik je inspiriran SQL-om ali predstavlja objektnu verziju. Sam jezik nastao je iz jezika HQL i njegov je podskup (HQL je Hibernate Query Language koji je nastao prije i koji je "utabao" put).
+
+Upiti se postavljaju na jedan od dva načina. Tipičan primjer uporabe:
+
+List<Tip> result = (List<Tip>)em.createQuery(" ... upit ...")
+                              .setParameter("n1","v1")
+							  .setParameter("n2","v2")
+							  .getResultList(); // ili Tip r = ... .getSingleResult()
+							  
+Ako imamo definiran imenovani upit, možemo ga dohvatiti preko imena:
+
+List<Tip> result = (List<Tip>)em.createNamedQuery("imeUpita")
+                              .setParameter("n1","v1")
+							  .setParameter("n2","v2")
+							  .getResultList();
+
+Podešavanje uporabe keširanja: JPA ima vrlo elementarnu podršku. Za naprednije podešavanje koristiti hibernateove specifične anotacije (gubi se izmjenjivost providera...).
+
+@NamedQueries({
+	@NamedQuery(
+		name="BlogEntry.upit1",
+		query="select b from BlogComment as b where b.blogEntry=:be and b.postedOn>:when",
+		hints={@QueryHint(name="org.hibernate.cacheable", value="true")}
+	)
+})
+
+Imamo li običan upit, nad njim možemo eksplicitno pozvati setHint(...) s naputkom da ga Hibernate kešira:
+	.setHint("org.hibernate.cacheable", true)
+
+Pazi: kod keširanja upita, pamte se samo primarni ključevi odgovora; ti se objekti pokušavaju dohvatiti iz keša. Ako ih tamo nema, dohvaćaju se jedan po jedan što može biti SPORO. Stoga bi vrijeme keširanja upita moralo biti konfigurirano kraće od vremena keširanja objekata, kako ne bismo podletili ovom problemu.

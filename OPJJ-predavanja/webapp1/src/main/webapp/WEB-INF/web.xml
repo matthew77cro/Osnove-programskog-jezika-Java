@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+		 http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+  metadata-complete="false">
+
+  <display-name>Moja prva aplikacija</display-name>
+  <description>
+     Prva aplikacija
+  </description>
+  
+  <servlet>
+  	<servlet-name>prvi</servlet-name>
+  	<servlet-class>hr.fer.zemris.java.p11.servleti.PrviServlet</servlet-class>
+  </servlet>
+  
+  <servlet-mapping>
+  	<servlet-name>prvi</servlet-name>
+  	<url-pattern>/index2</url-pattern>
+  </servlet-mapping>
+
+</web-app>

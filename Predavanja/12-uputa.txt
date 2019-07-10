@@ -1,0 +1,1276 @@
+===============================================================
+Sekcija 0. Postavljanje poslužitelja baze podataka Apache Derby
+===============================================================
+
+Sadržaj Sekcije 0 je potrebno napraviti PRIJE dolaska na predavanje.
+
+Ferko - repozitorij - dodatci 12 predavanju: skinuti derby-skripte.zip, raspakirati na disku (trebat ćete često koristiti direktorij koji dobijete pa to smjestite negdje prikladno) i potom napravite sve što piše u PROCITAJ-ME.TXT koja se nalazi u toj arhivi.
+
+==================================================
+Sekcija 1. Priprema baze
+==================================================
+
+Jednom kada je baza baza1DB spremna, na nju se spajamo preko URL-a:
+jdbc:derby://localhost:1527/baza1DB;user=perica;password=pero
+
+Pokrenite program ij, unesite: 
+CONNECT 'jdbc:derby://localhost:1527/baza1DB;user=perica;password=pero';
+
+Napomena (nemojte još to raditi): iz ij izlazite s:
+exit;
+
+Zadajte sljedeću naredbu:
+
+CREATE TABLE Poruke
+	(id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+	title VARCHAR(100) NOT NULL,
+	message CLOB(2048) NOT NULL,
+	createdOn TIMESTAMP NOT NULL,
+	userEMail VARCHAR(60) NOT NULL
+);
+
+DESCRIBE Poruke;
+
+INSERT INTO Poruke (title, message, createdOn, userEMail) VALUES
+	('Prva poruka','Ovo je prva poruka.','2012-05-10 13:52:14','Ivo.Ivic@abc.net'),
+	('Druga poruka','Ovo je druga poruka.','2012-05-12 21:12:13','Ante.Anic@abc.org'),
+	('Treca poruka','Ovo je treca poruka.','2012-05-20 11:12:13','Jasminka.Jasmic@abc.com');
+
+SELECT * FROM Poruke;
+	
+SELECT * FROM Poruke WHERE id=2;
+
+Dokumentacija za Derby tipove podataka:
+http://db.apache.org/derby/docs/10.15/ref/crefsqlj31068.html
+
+Sada se po potrebi možete otpojiti od baze:
+disconnect;
+te napustiti ij:
+exit;
+
+========================================================
+Sekcija 2. Klijent iz komandne linije: priprema projekta
+========================================================
+
+U Eclipseovom workspaceu napravite novi direktorij: databaseapp1. U njega stavite pom.xml:
+
+----------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>hr.fer.zemris.java.jmbag0000000000.dbapps</groupId>
+	<artifactId>databaseapp1</artifactId>
+	<version>1.0</version>
+	<packaging>jar</packaging>
+
+	<!-- configuration of basic properties -->
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<maven.compiler.source>11</maven.compiler.source>
+		<maven.compiler.target>11</maven.compiler.target>
+		<maven.compiler.showDeprecation>true</maven.compiler.showDeprecation>
+		<junit.jupiter.version>5.4.0</junit.jupiter.version>
+	</properties>
+
+	<build>
+		<finalName>databaseapp1</finalName>
+	</build>
+
+	<dependencies>
+
+		<!-- junit testing: -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-params</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+</project>
+----------------------------------------------------------------------------------------------
+
+Po potrebi promijenite JMBAG.
+
+Potom dodajte ovisnosti prema JDBC driveru za komunikaciju s Apache Derby poslužiteljem te implementacijom connection-poola.
+
+derby-client: JDBC driver za spajanje na derby bazu
+<!-- http://mvnrepository.com/artifact/org.apache.derby/derbyclient -->
+<dependency>
+	<groupId>org.apache.derby</groupId>
+	<artifactId>derbyclient</artifactId>
+	<version>10.15.1.3</version>
+</dependency>
+<!-- https://mvnrepository.com/artifact/org.apache.derby/derbyshared -->
+<dependency>
+	<groupId>org.apache.derby</groupId>
+	<artifactId>derbyshared</artifactId>
+	<version>10.15.1.3</version>
+</dependency>
+<!-- https://mvnrepository.com/artifact/org.apache.derby/derbytools -->
+<dependency>
+    <groupId>org.apache.derby</groupId>
+    <artifactId>derbytools</artifactId>
+    <version>10.15.1.3</version>
+</dependency>
+
+c3p0:
+<!-- http://mvnrepository.com/artifact/com.mchange/c3p0 -->
+<dependency>
+	<groupId>com.mchange</groupId>
+	<artifactId>c3p0</artifactId>
+	<version>0.9.5.4</version>
+</dependency>
+
+Napravite ostatak strukture projekta:
+
+Linux:
+
+cd databaseapp1
+mkdir -p src/main/java
+mkdir -p src/main/resources
+mkdir -p src/test/java
+
+Windows:
+
+cd databaseapp1
+mkdir src\main\java
+mkdir src\main\resources
+mkdir src\test\java
+
+Importajte projekt u Eclipse.
+
+==================================================
+Sekcija 3. Klijent iz komandne linije
+==================================================
+
+Dodajte u projekt razred hr.fer.zemris.jdbc.Listaj:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.jdbc;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+
+public class Listaj {
+
+	public static void main(String[] args) {
+		
+		// Za Derby registracija nije potrebna -- maknut ćemo u sljedećim primjerima.
+		try {
+			Class.forName("org.apache.derby.jdbc.ClientDriver");
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		String dbName="baza1DB";
+		String connectionURL = "jdbc:derby://localhost:1527/" + dbName;
+		
+		// Alternativa uporabi parametara je koristiti URL koji ima na kraju ;user=perica;password=pero
+		java.util.Properties dbProperties = new java.util.Properties();
+		dbProperties.setProperty("user", "perica");
+		dbProperties.setProperty("password", "pero");
+
+		Connection con = null;
+		try {
+			con = DriverManager.getConnection(connectionURL, dbProperties);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		PreparedStatement pst = null;
+		
+		try {
+			pst = con.prepareStatement("SELECT id, title, message, createdOn, userEMail from Poruke order by id");
+			ResultSet rset = pst.executeQuery();
+			try {
+				while(rset.next()) {
+					long id = rset.getLong(1); // ili rset.getLong("id"); 
+					String title = rset.getString(2); // ili rset.getString("title");
+					String message = rset.getString(3); // ili rset.getString("message");
+					Date createdOn = rset.getTimestamp(4); // ili rset.getTimestamp("createdOn");
+					String userEMail = rset.getString(5); // ili rset.getString("userEMail");
+					System.out.println("Zapis "+id);
+					System.out.println("===================================");
+					System.out.println("Naziv: "+title);
+					System.out.println("Poruka: "+message);
+					System.out.println("Stvoreno: "+createdOn);
+					System.out.println("EMail: "+userEMail);
+					System.out.println("");
+				}
+			} finally {
+				try { rset.close(); } catch(SQLException ex) {
+					ex.printStackTrace();
+				}
+			}
+		} catch(SQLException ex) {
+			ex.printStackTrace();
+		} finally {
+			try { pst.close(); } catch(SQLException ex) {
+				ex.printStackTrace();
+			}
+		}
+		try { con.close(); } catch(SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Pokrenite program.
+
+Dodajte u projekt razred hr.fer.zemris.jdbc.IzmjeniZapis:
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.jdbc;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
+public class IzmjeniZapis {
+
+	public static void main(String[] args) {
+		
+		String dbName="baza1DB";
+		String connectionURL = "jdbc:derby://localhost:1527/" + dbName;
+
+		// Alternativa uporabi parametara je koristiti URL koji ima na kraju ;user=perica;password=pero
+		java.util.Properties dbProperties = new java.util.Properties();
+		dbProperties.setProperty("user", "perica");
+		dbProperties.setProperty("password", "pero");
+
+		Connection con = null;
+		try {
+			con = DriverManager.getConnection(connectionURL, dbProperties);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		PreparedStatement pst = null;
+		
+		try {
+			pst = con.prepareStatement("UPDATE Poruke set title=?, userEMail=? WHERE id=?");
+			pst.setLong(3, 2); // Napravi promjenu u retku s ID=2
+			pst.setString(1, "Modificirana druga poruka");
+			pst.setString(2, "Andela.Andelic@edu.edu");
+
+			int numberOfAffectedRows = pst.executeUpdate(); // Ocekujemo da je numberOfAffectedRows=1
+			System.out.println("Broj redaka koji su pogođeni ovom izmjenom: "+numberOfAffectedRows);
+		} catch(SQLException ex) {
+			ex.printStackTrace();
+		} finally {
+			try { pst.close(); } catch(SQLException ex) {
+				ex.printStackTrace();
+			}
+		}
+		try { con.close(); } catch(SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Pokrenite program. Pokrenite ponovno i program Listaj i uvjerite se da je promjena doista obavljena.
+
+Dodajte u projekt razred hr.fer.zemris.jdbc.DodajZapis:
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.jdbc;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.Date;
+
+public class DodajZapis {
+
+	public static void main(String[] args) {
+		
+		String dbName="baza1DB";
+		String connectionURL = "jdbc:derby://localhost:1527/" + dbName;
+
+		// Alternativa uporabi parametara je koristiti URL koji ima na kraju ;user=perica;password=pero
+		java.util.Properties dbProperties = new java.util.Properties();
+		dbProperties.setProperty("user", "perica");
+		dbProperties.setProperty("password", "pero");
+
+		Connection con = null;
+		try {
+			con = DriverManager.getConnection(connectionURL, dbProperties);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		PreparedStatement pst = null;
+		
+		try {
+			pst = con.prepareStatement(
+				"INSERT INTO Poruke (title, message, createdOn, userEMail) values (?,?,?,?)", 
+				Statement.RETURN_GENERATED_KEYS);
+			pst.setString(1, "Još jedna poruka");
+			pst.setString(2, "Ovo je tekst te nove poruke.");
+			pst.setTimestamp(3, new Timestamp(new Date().getTime()));
+			pst.setString(4, "Jasminka.Jasnic@xyz.net");
+
+			int numberOfAffectedRows = pst.executeUpdate(); // Ocekujemo da je numberOfAffectedRows=1
+			System.out.println("Broj redaka koji su pogođeni ovim unosom: "+numberOfAffectedRows);
+			
+			ResultSet rset = pst.getGeneratedKeys();
+			
+			try {
+				if(rset != null && rset.next()) {
+					long noviID = rset.getLong(1);
+					System.out.println("Unos je obavljen i podatci su pohranjeni pod ključem id="+noviID);
+				}
+			} finally {
+				try { rset.close(); } catch(SQLException ex) {
+					ex.printStackTrace();
+				}
+			}
+		} catch(SQLException ex) {
+			ex.printStackTrace();
+		} finally {
+			try { pst.close(); } catch(SQLException ex) {
+				ex.printStackTrace();
+			}
+		}
+		try { con.close(); } catch(SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Pokrenite program. Pokrenite ponovno i program Listaj i uvjerite se da je dodavanje doista obavljeno.
+
+==================================================
+Sekcija 4. Uporaba connection-pool-a
+==================================================
+
+Uspostava veze prema bazi podataka i raskid veze (veza je modelirana objektom Connection) je vremenski vrlo skupo. Stoga se u produkcijskim sustavima uobičajeno koriste connection-pool-ovi koji veze prema bazi uspostavljaju i zatim višekratno iznajmljuju klijentima na zahtjev. Jedna od često korištenih biblioteka za te potrebe je biblioteka c3p0 koju ćemo i mi ovdje upogoniti.
+
+Koristit ćemo biblioteku c3p0 koja implementira connection-pooling prema bazi podataka. Ako još niste, dodajte odgovarajući maven dependency.
+
+(Dokumentacija: http://www.mchange.com/projects/c3p0-0.9.5/)
+
+Dodajte program hr.fer.zemris.jdbc.Listaj2:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.jdbc;
+
+import java.beans.PropertyVetoException;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+
+import javax.sql.DataSource;
+
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+import com.mchange.v2.c3p0.DataSources;
+
+public class Listaj2 {
+
+	public static void main(String[] args) {
+		
+		String dbName="baza1DB";
+		String connectionURL = "jdbc:derby://localhost:1527/" + dbName;
+
+		// Priprema pool-a
+		ComboPooledDataSource cpds = new ComboPooledDataSource();
+		try {
+			cpds.setDriverClass("org.apache.derby.jdbc.ClientDriver");
+		} catch (PropertyVetoException e1) {
+			e1.printStackTrace();
+			System.exit(0);
+		}
+		cpds.setJdbcUrl(connectionURL);
+		cpds.setUser("perica");
+		cpds.setPassword("pero");
+		cpds.setInitialPoolSize(5);
+		cpds.setMinPoolSize(5);
+		cpds.setAcquireIncrement(5);
+		cpds.setMaxPoolSize(20);
+		
+		// Obavljanje jedne ili niza operacija nad bazom preko pool-a
+		doOperation(cpds);
+		
+		// Unistavanje pool-a
+		try {
+			DataSources.destroy(cpds);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static void doOperation(DataSource dataSource) {
+		Connection con = null;
+		try {
+			con = dataSource.getConnection();
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		PreparedStatement pst = null;
+		
+		try {
+			pst = con.prepareStatement("SELECT id, title, message, createdOn, userEMail from Poruke order by id");
+			ResultSet rset = pst.executeQuery();
+			try {
+				while(rset.next()) {
+					long id = rset.getLong(1); // ili rset.getLong("id"); 
+					String title = rset.getString(2); // ili rset.getString("title");
+					String message = rset.getString(3); // ili rset.getString("message");
+					Date createdOn = rset.getTimestamp(4); // ili rset.getTimestamp("createdOn");
+					String userEMail = rset.getString(5); // ili rset.getString("userEMail");
+					System.out.println("Zapis "+id);
+					System.out.println("===================================");
+					System.out.println("Naziv: "+title);
+					System.out.println("Poruka: "+message);
+					System.out.println("Stvoreno: "+createdOn);
+					System.out.println("EMail: "+userEMail);
+					System.out.println("");
+				}
+			} finally {
+				try { rset.close(); } catch(SQLException ex) {
+					ex.printStackTrace();
+				}
+			}
+		} catch(SQLException ex) {
+			ex.printStackTrace();
+		} finally {
+			try { pst.close(); } catch(SQLException ex) {
+				ex.printStackTrace();
+			}
+		}
+		try { con.close(); } catch(SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Pokrenite i uvjerite se da radi.
+
+Umjesto izravne konfiguracije ComboPooledDataSource objekta, pooleani izvor moguće je dobiti i kroz metode tvornice razreda DataSources, kako je prikazano u nastavku (u četiri koraka).
+
+// Alternativni način podešavanja pooleanog izvora: POČETAK
+// -----------------------------------------------------------------
+
+// 1. Konfiguracija nepoolanog izvora:
+Properties properties = new Properties();
+properties.setProperty("user", "perica");
+properties.setProperty("password", "pero");
+
+// 2. Stvaranje nepoolanog izvora:
+DataSource unpooledDataSource = DataSources.unpooledDataSource(
+  "jdbc:derby://localhost:1527/baza1DB",
+  properties
+);
+
+// 3. Dodatna konfiguracija poolanog izvora:
+Map config = new HashMap();
+config.put("initialPoolSize", "5");
+config.put("minPoolSize", "5");
+config.put("acquireIncrement", "5");
+config.put("maxPoolSize", "20");
+// Postaviti samo ako inace ne radi:
+config.put("driverClass", "org.apache.derby.jdbc.ClientDriver");
+
+// 4. Stvaranje poolanog izvora:
+DataSource source = DataSources.pooledDataSource(unpooledDataSource, config);
+// -----------------------------------------------------------------
+// Alternativni način podešavanja pooleanog izvora: KRAJ
+
+Proširite sada program tako da konfiguracijske postavke čita iz datoteke. Napravite u direktoriju src/main/resources
+datoteku database.properties sljedećeg sadržaja:
+-------------------------------------------------------------------------------------------------
+url = jdbc:derby://localhost:1527/baza1DB
+driver = org.apache.derby.jdbc.ClientDriver
+user = perica
+password = pero
+-------------------------------------------------------------------------------------------------
+
+Sada napravite hr.fer.zemris.jdbc.Listaj3 koji koristi ResourceBundle za čitanje konfiguracijskih parametara.
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.jdbc;
+
+import java.beans.PropertyVetoException;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.ResourceBundle;
+
+import javax.sql.DataSource;
+
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+import com.mchange.v2.c3p0.DataSources;
+
+public class Listaj3 {
+
+	public static void main(String[] args) {
+		
+		ResourceBundle konfiguracija = ResourceBundle.getBundle("database");
+		
+		String connectionURL = konfiguracija.getString("url");
+
+		// Priprema pool-a
+		ComboPooledDataSource cpds = new ComboPooledDataSource();
+		try {
+			cpds.setDriverClass(konfiguracija.getString("driver"));
+		} catch (PropertyVetoException e1) {
+			e1.printStackTrace();
+			System.exit(0);
+		}
+		cpds.setJdbcUrl(connectionURL);
+		cpds.setUser(konfiguracija.getString("user"));
+		cpds.setPassword(konfiguracija.getString("password"));
+		cpds.setInitialPoolSize(5);
+		cpds.setMinPoolSize(5);
+		cpds.setAcquireIncrement(5);
+		cpds.setMaxPoolSize(20);
+		
+		// Obavljanje jedne ili niza operacija nad bazom preko pool-a
+		doOperation(cpds);
+		
+		// Unistavanje pool-a
+		try {
+			DataSources.destroy(cpds);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static void doOperation(DataSource dataSource) {
+		Connection con = null;
+		try {
+			con = dataSource.getConnection();
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.exit(0);
+		}
+
+		PreparedStatement pst = null;
+		
+		try {
+			pst = con.prepareStatement("SELECT id, title, message, createdOn, userEMail from Poruke order by id");
+			ResultSet rset = pst.executeQuery();
+			try {
+				while(rset.next()) {
+					long id = rset.getLong(1); // ili rset.getLong("id"); 
+					String title = rset.getString(2); // ili rset.getString("title");
+					String message = rset.getString(3); // ili rset.getString("message");
+					Date createdOn = rset.getTimestamp(4); // ili rset.getTimestamp("createdOn");
+					String userEMail = rset.getString(5); // ili rset.getString("userEMail");
+					System.out.println("Zapis "+id);
+					System.out.println("===================================");
+					System.out.println("Naziv: "+title);
+					System.out.println("Poruka: "+message);
+					System.out.println("Stvoreno: "+createdOn);
+					System.out.println("EMail: "+userEMail);
+					System.out.println("");
+				}
+			} finally {
+				try { rset.close(); } catch(SQLException ex) {
+					ex.printStackTrace();
+				}
+			}
+		} catch(SQLException ex) {
+			ex.printStackTrace();
+		} finally {
+			try { pst.close(); } catch(SQLException ex) {
+				ex.printStackTrace();
+			}
+		}
+		try { con.close(); } catch(SQLException ex) {
+			ex.printStackTrace();
+		}
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Pokrenite i uvjerite se da radi.
+
+==================================================
+Sekcija 5a. Web aplikacija: priprema
+==================================================
+
+U Eclipseovom workspaceu napravite novi direktorij webapp-baza. Dodajte u njega sljedeći pom.xml.
+
+-----------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>hr.fer.zemris.java.jmbag0000000000.webapps</groupId>
+	<artifactId>webapp-baza</artifactId>
+	<version>1.0</version>
+	<packaging>war</packaging>
+
+	<!-- configuration of basic properties -->
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<maven.compiler.source>11</maven.compiler.source>
+		<maven.compiler.target>11</maven.compiler.target>
+		<maven.compiler.showDeprecation>true</maven.compiler.showDeprecation>
+		<junit.jupiter.version>5.4.0</junit.jupiter.version>
+	</properties>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.eclipse.jetty</groupId>
+				<artifactId>jetty-maven-plugin</artifactId>
+				<version>9.4.18.v20190429</version>
+				<configuration>
+					<scanIntervalSeconds>10</scanIntervalSeconds>
+					<webApp>
+						<contextPath>/webapp-baza</contextPath>
+					</webApp>
+				</configuration>
+			</plugin>
+		</plugins>
+		<finalName>webapp-baza</finalName>
+	</build>
+
+	<dependencies>
+		<!-- http://mvnrepository.com/artifact/org.apache.derby/derbyclient -->
+		<dependency>
+			<groupId>org.apache.derby</groupId>
+			<artifactId>derbyclient</artifactId>
+			<version>10.15.1.3</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.apache.derby/derbyshared -->
+		<dependency>
+			<groupId>org.apache.derby</groupId>
+			<artifactId>derbyshared</artifactId>
+			<version>10.15.1.3</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.apache.derby/derbytools -->
+		<dependency>
+		    <groupId>org.apache.derby</groupId>
+		    <artifactId>derbytools</artifactId>
+		    <version>10.15.1.3</version>
+		</dependency>
+
+		<!-- http://mvnrepository.com/artifact/com.mchange/c3p0 -->
+		<dependency>
+			<groupId>com.mchange</groupId>
+			<artifactId>c3p0</artifactId>
+			<version>0.9.5.4</version>
+		</dependency>
+
+
+		<!-- junit testing: -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-params</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- servlet/jsp api support: -->
+		<dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>javax.servlet-api</artifactId>
+			<version>3.1.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>javax.servlet.jsp</groupId>
+			<artifactId>javax.servlet.jsp-api</artifactId>
+			<version>2.3.1</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- jstl support: -->
+		<dependency>
+			<groupId>javax.servlet.jsp.jstl</groupId>
+			<artifactId>javax.servlet.jsp.jstl-api</artifactId>
+			<version>1.2.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.web</groupId>
+			<artifactId>javax.servlet.jsp.jstl</artifactId>
+			<version>1.2.1</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>jstl-api</artifactId>
+					<groupId>javax.servlet.jsp.jstl</groupId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+	</dependencies>
+
+</project>
+-----------------------------------------------------------------------------------------------------
+
+Prilagodite JMBAG.
+
+Napravite potrebnu strukturu direktorija:
+
+Linux:
+
+cd webapp-baza
+mkdir -p src/main/java
+mkdir -p src/main/resources
+mkdir -p src/main/webapp/WEB-INF
+mkdir -p src/test/java
+
+Windows:
+
+cd webapp-baza
+mkdir src\main\java
+mkdir src\main\resources
+mkdir src\main\webapp\WEB-INF
+mkdir src\test\java
+
+Dodajte web.xml u src/main/webapp/WEB-INF:
+-----------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee
+		 http://xmlns.jcp.org/xml/ns/javaee/web-app_3_1.xsd"
+         version="3.1"
+  metadata-complete="false">
+
+  <display-name>Moja prva aplikacija</display-name>
+  <description>
+     Prva aplikacija
+  </description>
+
+</web-app>
+-----------------------------------------------------------------------------------------------------
+
+Importajte projekt u Eclipse.
+
+==================================================
+Sekcija 5b. Web aplikacija
+==================================================
+
+Dodajte najprije razred hr.fer.zemris.java.p12.Inicijalizacija koji će biti web-listener koji će prilikom bootanja web-aplikacije osposobiti connection-pool i postaviti ga u mapu atributa, te koji će prilikom gašenja aplikacije dohvatiti taj pool i uništiti ga.
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12;
+
+import java.beans.PropertyVetoException;
+import java.sql.SQLException;
+
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
+
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+import com.mchange.v2.c3p0.DataSources;
+
+@WebListener
+public class Inicijalizacija implements ServletContextListener {
+
+	@Override
+	public void contextInitialized(ServletContextEvent sce) {
+		
+		String dbName="baza1DB";
+		String connectionURL = "jdbc:derby://localhost:1527/" + dbName + ";user=perica;password=pero";
+
+		ComboPooledDataSource cpds = new ComboPooledDataSource();
+		try {
+			cpds.setDriverClass("org.apache.derby.jdbc.ClientDriver");
+		} catch (PropertyVetoException e1) {
+			throw new RuntimeException("Pogreška prilikom inicijalizacije poola.", e1);
+		}
+		cpds.setJdbcUrl(connectionURL);
+
+		sce.getServletContext().setAttribute("hr.fer.zemris.dbpool", cpds);
+	}
+
+	@Override
+	public void contextDestroyed(ServletContextEvent sce) {
+		ComboPooledDataSource cpds = (ComboPooledDataSource)sce.getServletContext().getAttribute("hr.fer.zemris.dbpool");
+		if(cpds!=null) {
+			try {
+				DataSources.destroy(cpds);
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+}
+-------------------------------------------------------------------------------------------------
+
+Napravimo model domene za naš slučaj -- to će biti samo jedan razred: hr.fer.zemris.java.p12.model.Unos.
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.model;
+
+import java.util.Date;
+
+public class Unos {
+	private long id;
+	private String title;
+	private String message;
+	private Date createdOn;
+	private String userEMail;
+	
+	public Unos() {
+	}
+
+	public long getId() {
+		return id;
+	}
+
+	public void setId(long id) {
+		this.id = id;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
+	}
+
+	public String getMessage() {
+		return message;
+	}
+
+	public void setMessage(String message) {
+		this.message = message;
+	}
+
+	public Date getCreatedOn() {
+		return createdOn;
+	}
+
+	public void setCreatedOn(Date createdOn) {
+		this.createdOn = createdOn;
+	}
+
+	public String getUserEMail() {
+		return userEMail;
+	}
+
+	public void setUserEMail(String userEMail) {
+		this.userEMail = userEMail;
+	}
+
+	@Override
+	public String toString() {
+		return "Unos id="+id;
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Krenimo sada s pripremom podsustava za pristup sloju za perzistenciju. Napravite prvo razred hr.fer.zemris.java.p12.dao.DAO koji predstavlja sučelje:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.dao;
+
+import hr.fer.zemris.java.p12.model.Unos;
+
+import java.util.List;
+
+/**
+ * Sučelje prema podsustavu za perzistenciju podataka.
+ * 
+ * @author marcupic
+ *
+ */
+public interface DAO {
+
+	/**
+	 * Dohvaća sve postojeće unose u bazi, ali puni samo dva podatka:
+	 * id i title.
+	 * 
+	 * @return listu unosa
+	 * @throws DAOException u slučaju pogreške
+	 */
+	public List<Unos> dohvatiOsnovniPopisUnosa() throws DAOException;
+	
+	/**
+	 * Dohvaća Unos za zadani id. Ako unos ne postoji, vraća <code>null</code>.
+	 * @param id
+	 * @return
+	 * @throws DAOException
+	 */
+	public Unos dohvatiUnos(long id) throws DAOException;
+	
+}
+-------------------------------------------------------------------------------------------------
+
+Potom i potrebnu iznimku hr.fer.zemris.java.p12.dao.DAOException:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.dao;
+
+public class DAOException extends RuntimeException {
+
+	private static final long serialVersionUID = 1L;
+
+	public DAOException() {
+	}
+
+	public DAOException(String message, Throwable cause,
+			boolean enableSuppression, boolean writableStackTrace) {
+		super(message, cause, enableSuppression, writableStackTrace);
+	}
+
+	public DAOException(String message, Throwable cause) {
+		super(message, cause);
+	}
+
+	public DAOException(String message) {
+		super(message);
+	}
+
+	public DAOException(Throwable cause) {
+		super(cause);
+	}
+}
+-------------------------------------------------------------------------------------------------
+
+Napravimo i razred hr.fer.zemris.java.p12.dao.DAOProvider koji će uporabom oblikovnog obrasca singleton dojavljivati svima koja se konkretna implementacija podsustava za perzistenciju koristi u sustavu:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.dao;
+
+import hr.fer.zemris.java.p12.dao.sql.SQLDAO;
+
+/**
+ * Singleton razred koji zna koga treba vratiti kao pružatelja
+ * usluge pristupa podsustavu za perzistenciju podataka.
+ * Uočite da, iako je odluka ovdje hardkodirana, naziv
+ * razreda koji se stvara mogli smo dinamički pročitati iz
+ * konfiguracijske datoteke i dinamički učitati -- time bismo
+ * implementacije mogli mijenjati bez ikakvog ponovnog kompajliranja
+ * koda.
+ * 
+ * @author marcupic
+ *
+ */
+public class DAOProvider {
+
+	private static DAO dao = new SQLDAO();
+	
+	/**
+	 * Dohvat primjerka.
+	 * 
+	 * @return objekt koji enkapsulira pristup sloju za perzistenciju podataka.
+	 */
+	public static DAO getDao() {
+		return dao;
+	}
+	
+}
+-------------------------------------------------------------------------------------------------
+
+Idemo sada izgraditi podsustav za perzistenciju koji direktno koristi hr.fer.zemris.java.p12.dao.sql.SQL. Napravimo pomoćni razred SQLConnectionProvider koji će za trenutnu dretvu pamtiti koju vezu prema bazi podataka može koristiti:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.dao.sql;
+
+import java.sql.Connection;
+
+/**
+ * Pohrana veza prema bazi podataka u ThreadLocal object. ThreadLocal je zapravo
+ * mapa čiji su ključevi identifikator dretve koji radi operaciju nad mapom.
+ * 
+ * @author marcupic
+ *
+ */
+public class SQLConnectionProvider {
+
+	private static ThreadLocal<Connection> connections = new ThreadLocal<>();
+	
+	/**
+	 * Postavi vezu za trenutnu dretvu (ili obriši zapis iz mape ako je argument <code>null</code>).
+	 * 
+	 * @param con veza prema bazi
+	 */
+	public static void setConnection(Connection con) {
+		if(con==null) {
+			connections.remove();
+		} else {
+			connections.set(con);
+		}
+	}
+	
+	/**
+	 * Dohvati vezu koju trenutna dretva (pozivatelj) smije koristiti.
+	 * 
+	 * @return vezu prema bazi podataka
+	 */
+	public static Connection getConnection() {
+		return connections.get();
+	}
+	
+}
+-------------------------------------------------------------------------------------------------
+
+Napravimo sada i konkretnu implementaciju sučelja hr.fer.zemris.java.p12.dao.sql.DAO: 
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12.dao.sql;
+
+import hr.fer.zemris.java.p12.dao.DAO;
+import hr.fer.zemris.java.p12.dao.DAOException;
+import hr.fer.zemris.java.p12.model.Unos;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Ovo je implementacija podsustava DAO uporabom tehnologije SQL. Ova
+ * konkretna implementacija očekuje da joj veza stoji na raspolaganju
+ * preko {@link SQLConnectionProvider} razreda, što znači da bi netko
+ * prije no što izvođenje dođe do ove točke to trebao tamo postaviti.
+ * U web-aplikacijama tipično rješenje je konfigurirati jedan filter 
+ * koji će presresti pozive servleta i prije toga ovdje ubaciti jednu
+ * vezu iz connection-poola, a po zavrsetku obrade je maknuti.
+ *  
+ * @author marcupic
+ */
+public class SQLDAO implements DAO {
+
+	@Override
+	public List<Unos> dohvatiOsnovniPopisUnosa() throws DAOException {
+		List<Unos> unosi = new ArrayList<>();
+		Connection con = SQLConnectionProvider.getConnection();
+		PreparedStatement pst = null;
+		try {
+			pst = con.prepareStatement("select id, title from Poruke order by id");
+			try {
+				ResultSet rs = pst.executeQuery();
+				try {
+					while(rs!=null && rs.next()) {
+						Unos unos = new Unos();
+						unos.setId(rs.getLong(1));
+						unos.setTitle(rs.getString(2));
+						unosi.add(unos);
+					}
+				} finally {
+					try { rs.close(); } catch(Exception ignorable) {}
+				}
+			} finally {
+				try { pst.close(); } catch(Exception ignorable) {}
+			}
+		} catch(Exception ex) {
+			throw new DAOException("Pogreška prilikom dohvata liste korisnika.", ex);
+		}
+		return unosi;
+	}
+
+	@Override
+	public Unos dohvatiUnos(long id) throws DAOException {
+		Unos unos = null;
+		Connection con = SQLConnectionProvider.getConnection();
+		PreparedStatement pst = null;
+		try {
+			pst = con.prepareStatement("select id, title, message, createdOn, userEMail from Poruke where id=?");
+			pst.setLong(1, Long.valueOf(id));
+			try {
+				ResultSet rs = pst.executeQuery();
+				try {
+					if(rs!=null && rs.next()) {
+						unos = new Unos();
+						unos.setId(rs.getLong(1));
+						unos.setTitle(rs.getString(2));
+						unos.setMessage(rs.getString(3));
+						unos.setCreatedOn(rs.getTimestamp(4));
+						unos.setUserEMail(rs.getString(5));
+					}
+				} finally {
+					try { rs.close(); } catch(Exception ignorable) {}
+				}
+			} finally {
+				try { pst.close(); } catch(Exception ignorable) {}
+			}
+		} catch(Exception ex) {
+			throw new DAOException("Pogreška prilikom dohvata korisnika.", ex);
+		}
+		return unos;
+	}
+
+}
+-------------------------------------------------------------------------------------------------
+
+Konačno, da bi stvari proradile, trebamo se dogovoriti da ćemo sve servlete koji trebaju uslugu sloja za perzistenciju mapirati na /servleti/*. Ako je to istina, onda možemo napraviti jedan filter koji će svaki takav zahtjev presresti, zatražiti od connection-pool-a jednu vezu, postaviti je za trenutnu dretvu u SQLConnectionProvider i tek tada proslijediti izvođenje servletu koji će u nekom trenutku pozvati naš DAO podsustav koji će očekivati da je ta veza tamo; jednom kad je servlet gotov, filter će ukloniti postavljenu vezu.
+
+Dakle, evo filtera hr.fer.zemris.java.p12.ConnectionSetterFilter:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12;
+
+import hr.fer.zemris.java.p12.dao.sql.SQLConnectionProvider;
+
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.annotation.WebFilter;
+import javax.sql.DataSource;
+
+@WebFilter(filterName="f1",urlPatterns={"/servleti/*"})
+public class ConnectionSetterFilter implements Filter {
+	
+	@Override
+	public void init(FilterConfig filterConfig) throws ServletException {
+	}
+	
+	@Override
+	public void destroy() {
+	}
+	
+	@Override
+	public void doFilter(ServletRequest request, ServletResponse response,
+			FilterChain chain) throws IOException, ServletException {
+		
+		DataSource ds = (DataSource)request.getServletContext().getAttribute("hr.fer.zemris.dbpool");
+		Connection con = null;
+		try {
+			con = ds.getConnection();
+		} catch (SQLException e) {
+			throw new IOException("Baza podataka nije dostupna.", e);
+		}
+		SQLConnectionProvider.setConnection(con);
+		try {
+			chain.doFilter(request, response);
+		} finally {
+			SQLConnectionProvider.setConnection(null);
+			try { con.close(); } catch(SQLException ignorable) {}
+		}
+	}
+	
+}
+-------------------------------------------------------------------------------------------------
+
+Sada možemo napraviti i servlet hr.fer.zemris.java.p12.ListajKratko koji dohvaća sve unose:
+
+-------------------------------------------------------------------------------------------------
+package hr.fer.zemris.java.p12;
+
+import hr.fer.zemris.java.p12.dao.DAOProvider;
+import hr.fer.zemris.java.p12.model.Unos;
+
+import java.io.IOException;
+import java.util.List;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+@WebServlet("/servleti/listajKratko")
+public class ListajKratko extends HttpServlet {
+
+	private static final long serialVersionUID = 1L;
+
+	@Override
+	protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+			throws ServletException, IOException {
+
+		List<Unos> unosi = DAOProvider.getDao().dohvatiOsnovniPopisUnosa();
+		req.setAttribute("unosi", unosi);
+		
+		req.getRequestDispatcher("/WEB-INF/pages/ListajKratko.jsp").forward(req, resp);
+	}
+	
+}
+-------------------------------------------------------------------------------------------------
+
+i koji iscrtavanje rezultata prosljeđuje dalje na JSP /WEB-INF/pages/ListajKratko.jsp:
+
+-------------------------------------------------------------------------------------------------
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
+<%@page import="hr.fer.zemris.java.p12.model.Unos"%>
+<%@page import="java.util.List"%>
+<%
+  List<Unos> unosi = (List<Unos>)request.getAttribute("unosi");
+%>
+<html>
+  <body>
+
+  <b>Pronađeni su sljedeći unosi:</b><br>
+
+  <% if(unosi.isEmpty()) { %>
+    Nema unosa.
+  <% } else { %>
+    <ul>
+    <% for(Unos u : unosi) { %>
+    <li>[ID=<%= u.getId() %>] <%= u.getTitle() %> </li>  
+    <% } %>  
+    </ul>
+  <% } %>
+
+  </body>
+</html>
+-------------------------------------------------------------------------------------------------
+
+Pokrenite web-aplikaciju i uvjerite se da radi.
+
+http://localhost:8080/webapp-baza/servleti/listajKratko
+

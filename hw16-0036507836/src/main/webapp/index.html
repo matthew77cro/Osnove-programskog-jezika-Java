@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+	<head>
+
+		<meta charset="UTF-8">
+		<title>Galerija</title>
+		
+		<style>
+		
+		body {
+			background-color: #e0e0e0;
+		}
+		
+		button {
+			background-color: #008b8b;
+			border-style: solid;
+  			border-width: 5px;
+  			border-color: #16b0b0;
+			border-radius: 25px;
+			color: white;
+			padding: 5px 20px;
+			text-align: center;
+			font-size: 16px;
+			margin: 4px 2px;
+			cursor: pointer;
+		}
+		
+		button:hover {
+			border-color: #FF0000;
+		}
+		
+		div {
+			margin: auto;
+			width: 75%;
+			padding: 10px;
+		}
+		
+		#title {
+			font-family: Georgia, serif;
+			font-size: 32px;
+			letter-spacing: 3px;
+			word-spacing: 2.6px;
+			color: #7C0505;
+			font-weight: normal;
+			text-decoration: none;
+			font-style: normal;
+			font-variant: small-caps;
+			text-transform: none;
+			text-align: center;
+		}
+		
+		#thumbnails img {
+			border-style: solid;
+  			border-width: 5px;
+  			border-color: #afb0bf;
+			border-radius: 25px;
+			margin: 4px 2px;
+			cursor: pointer;
+		}
+		
+		.desc {
+			font-weight: bold;
+			background-color: #650065;
+			color: white;
+			border-style: solid;
+  			border-width: 5px;
+  			border-color: #df00df;
+			border-radius: 25px;
+			padding: 5px 20px;
+		}
+		
+		#picture img {
+			box-shadow: 1px 2px 20px rgba(0, 0, 0, .5);
+		    max-width: 100%;
+		    height:auto;
+		    width:auto;
+		}
+		
+		#picture {
+			text-align: center;
+		}
+		
+		</style>
+
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+		<script type="text/javascript" src="js/htmlescaping.js"></script>
+		<script type="text/javascript"><!--
+		
+		$(document).ready(
+	        function () {
+	            renderTags();
+	        }
+	    );
+		
+		function renderTags() {
+			$.ajax(
+                {
+                    url: "rest/restgaler/tag",
+                    data: {
+                        dummy: Math.random()
+                    },
+                    dataType: "json",
+                    success: function (data) {
+                    	html = "";
+                    	for(var i=0; i<data.length; i++) {
+                    		html += "<button onclick='renderThumbnails(\"" + htmlEscape(data[i]) + "\")'>" + htmlEscape(data[i]) + "</button>";
+                    	}
+                        $("#tags").html(html);
+                    }
+                }
+            )
+		}
+		
+		function renderThumbnails(tag) {
+			$.ajax(
+                {
+                    url: "rest/restgaler/tag/" + tag,
+                    data: {
+                        dummy: Math.random()
+                    },
+                    dataType: "json",
+                    success: function (data) {
+                    	html = "";
+                    	for(var i=0; i<data.length; i++) {
+                    		html += "<img src='servleti/thumbnailViewer?picture=" + htmlEscape(data[i]) + "' onClick='renderPicture(\"" + htmlEscape(data[i]) + "\")'>";
+                    	}
+                        $("#thumbnails").html(html);
+                    }
+                }
+            )
+		}
+		
+		function renderPicture(pic) {
+			$.ajax(
+                {
+                    url: "rest/restgaler/picture/" + pic,
+                    data: {
+                        dummy: Math.random()
+                    },
+                    dataType: "json",
+                    success: function (data) {
+                        $("#picture").html("<img src='servleti/pictureViewer?picture=" + htmlEscape(data.name) + "'>" + " <br> <p class='desc'> NAME: " + htmlEscape(data.name) + " <br> DESCRIPTION: " + htmlEscape(data.desc) + " <br> TAGS: " + htmlEscape(data.tags) + "</p>");
+                    }
+                }
+            )
+		}
+		
+		//--></script>
+	</head>
+	<body>
+
+		<div id="title">GALLERY APPLICATION</div>
+		<div id="tags">&nbsp;</div>
+		<div id="thumbnails">&nbsp;</div>
+		<div id="picture">&nbsp;</div>
+
+	</body>
+</html>

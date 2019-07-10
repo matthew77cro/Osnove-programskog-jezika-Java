@@ -1,0 +1,17 @@
+Debugiranje web-aplikacije
+--------------------------
+
+u setenv.sh staviti:
+
+CATALINA_OPTS="-Xmx512M -Dfile.encoding=UTF-8 -Xdebug -Xrunjdwp:transport=dt_socket,address=5555,server=y,suspend=n"
+
+Potom restartati tomcat.
+
+U Eclipse-u:
+
+Debug -> Debug Configuration -> Remote Java Application -> New launch configuration (ikona)
+
+Imenovati konfiguraciju, odabrati projekt, podesiti localhost:5555, pa gumb Debug.
+
+
+

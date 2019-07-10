@@ -1,0 +1,36 @@
+cute_dog.jpg
+Slika slatkog psića
+slatko, psić
+lion1.jpg
+Slika lava 1
+lav, savana, zamišljen
+lion2.jpg
+Slika lava 2
+lav, zamišljen, crno-bijelo
+lion3.jpg
+Slika lava 3
+lav, zijevanje
+pika1.jpg
+Slika pikachu-a 1
+bad-ass, pika, pikachu
+pika2.jpg
+Slika pikachu-a 2
+pika, slatko
+pika3.jpg
+Slika pikachu-a 3
+pika, pikachu, veseo
+rio.jpg
+Slika iz crtanog filma RIO
+rio, birds, slatko
+st1.jpg
+Title stranger things
+Stranger things, movie title
+st2.jpg
+Poster stranger things
+Stranger things, movie poster
+st3.jpg
+Poster stranger things 2
+Stranger things, movie poster
+st4.jpg
+Banner stranger things
+Stranger things, movie banner

@@ -1,0 +1,16 @@
+<resources>
+<string name="app_name">First Android application</string>
+<string name="calculate">Calculate</string>
+<string name="calculate2">Send to calculation</string>
+<string name="back">Back</string>
+<string name="send1">Send</string>
+<string name="send2">Send with Java</string>
+<string name="send3">Send Java butterknife</string>
+<string name="get1">Fetch URL</string>
+<string name="get2">Fech user</string>
+<string name="firstNamePlaceholder">First name: %s</string>
+<string name="lastNamePlaceholder">Last name: %s</string>
+    <string name="enterFirst">Enter first number</string>
+    <string name="enterSecond">Enter second number</string>
+</resources>
+

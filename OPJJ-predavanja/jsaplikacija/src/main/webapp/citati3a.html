@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<!-- Osnovna ideja dinamičkog dohvata informacija kako korisnik utipkava filter... -->
+		<meta charset="UTF-8">
+		<title>Citati (3a)</title>
+		<script type="text/javascript"><!--
+		  // vidi: http://www.w3schools.com/ajax/default.asp
+
+		  var trenutniTekst = "";
+		  var registriraniTimer = null;
+		  
+		  function obradiKeyUp(noviTekst) {
+			  trenutniTekst = noviTekst;
+			  if(registriraniTimer) {
+				  window.clearTimeout(registriraniTimer);
+				  registriraniTimer = null;
+			  }
+			  if(noviTekst.length==0) {
+				  document.getElementById("citat").innerHTML = "Otkazano...";
+				  return;
+			  }
+			  document.getElementById("citat").innerHTML = "Nanovo čekam. " + new Date();
+			  registriraniTimer = window.setTimeout(traziCitate, 5000);
+		  }
+		  
+		  function traziCitate() {
+			  document.getElementById("citat").innerHTML = "Trazim citat " + trenutniTekst + "... " + new Date();
+		  }
+		
+		//--></script>
+	</head>
+	<body>
+	
+		<h1>Demonstracija dohvata citata AJAX-om</h1>
+		
+		<p>Utipkajte ime (ili početak) autora i malo pričekajte...</p>
+		
+		<form>
+		Ime: <input type="text" onkeyup="obradiKeyUp(this.value);">
+		</form>
+		
+		<div id="citat">&nbsp;</div>
+		
+		<p>
+		  <a href="citati2b.html">Prethodni primjer...</a> | 
+		  <a href="citati3b.html">Sljedeći primjer...</a>
+		</p>
+	</body>
+</html>

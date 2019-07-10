@@ -1,0 +1,97 @@
+-------------------------------------------------------------
+ButterKnife
+-------------------------------------------------------------
+
+1) u modul:
+
+android {
+  ...
+  // Butterknife requires Java 8.
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+}
+
+dependencies {
+  implementation 'com.jakewharton:butterknife:10.1.0'
+  annotationProcessor 'com.jakewharton:butterknife-compiler:10.1.0'
+}
+
+2) u vršni projekt
+
+buildscript {
+  repositories {
+    mavenCentral()
+    google()
+   }
+  dependencies {
+    classpath 'com.jakewharton:butterknife-gradle-plugin:10.1.0'
+  }
+}
+
+Dokumentacija:
+
+https://jakewharton.github.io/butterknife/
+
+Ukratko - uporaba:
+
+// Definiranje članskih varijabli + anotacija:
+@BindView(R.id.title) TextView title;
+
+// Definiranje onClick listenera:
+@OnClick(R.id.submit)
+public void submit(View view) {
+  // TODO submit data to server...
+}
+
+// Može i bez argumenata:
+@OnClick(R.id.submit)
+public void submit() {
+  // TODO submit data to server...
+}
+
+
+// Ili s tipski specifičnijim argumentom:
+@OnClick(R.id.submit)
+public void sayHi(Button button) {
+  button.setText("Hello!");
+}
+
+// Da bi se sve povezalo, moramo to zatražiti pozivom metode bind()
+u onCreate() {
+  // nakon setContentView:
+  ButterKnife.bind(this);
+}
+
+
+-------------------------------------------------------------
+Uporaba gsona:
+-------------------------------------------------------------
+u modul:
+implementation 'com.google.code.gson:gson:2.8.5'
+
+-------------------------------------------------------------
+Uporaba retrofita:
+-------------------------------------------------------------
+u modul:
+    implementation 'com.squareup.retrofit2:retrofit:2.4.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
+    implementation 'com.squareup.okhttp3:okhttp:3.11.0'
+
+-------------------------------------------------------------
+Uporaba glidea:
+-------------------------------------------------------------
+u modul:
+    implementation 'com.github.bumptech.glide:glide:4.7.1'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.7.1'
+
+
+-------------------------------------------------------------
+Trebamo li internet, moramo tražiti dozvolu u manifestu:
+-------------------------------------------------------------
+    <uses-permission android:name="android.permission.INTERNET" />
+
+
+
+
